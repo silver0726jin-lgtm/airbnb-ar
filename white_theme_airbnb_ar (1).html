@@ -1,0 +1,2190 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Airbnb AR: 벽 너머의 세상 & 여행 타임캡슐</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Google Fonts: Inter & Noto Sans KR -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Noto+Sans+KR:wght@400;500;700;900&display=swap" rel="stylesheet">
+    <!-- Font Awesome -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+    <style>
+        body {
+            font-family: 'Inter', 'Noto Sans KR', sans-serif;
+            background-color: #f3f4f6;
+            color: #111827;
+            overflow-x: hidden;
+            user-select: none;
+            -webkit-tap-highlight-color: transparent;
+        }
+
+        /* 모바일 프레임 시뮬레이터 */
+        .app-shell {
+            max-width: 440px;
+            min-height: 100dvh;
+            margin: 0 auto;
+            position: relative;
+            background: #ffffff;
+            box-shadow: 0 25px 60px -15px rgba(15, 23, 42, 0.14);
+            overflow: hidden;
+        }
+
+        /* 흔들림 애니메이션 */
+        @keyframes screenShake {
+            0%, 100% { transform: translate(0, 0) rotate(0deg); }
+            20% { transform: translate(-6px, 4px) rotate(-0.8deg); }
+            40% { transform: translate(6px, -4px) rotate(0.8deg); }
+            60% { transform: translate(-4px, -3px) rotate(-0.5deg); }
+            80% { transform: translate(4px, 3px) rotate(0.5deg); }
+        }
+        .shake-active {
+            animation: screenShake 0.28s cubic-bezier(.36,.07,.19,.97) both;
+        }
+
+        /* 엽서 봉투 빨려 들어가는 애니메이션 */
+        @keyframes cardFlyToEnvelope {
+            0% { transform: scale(1) translateY(0); opacity: 1; }
+            50% { transform: scale(0.65) translateY(-40px) rotate(-4deg); opacity: 0.85; }
+            100% { transform: scale(0.15) translateY(-110px) rotate(6deg); opacity: 0; }
+        }
+        .fly-into-capsule {
+            animation: cardFlyToEnvelope 0.65s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+        }
+
+        /* 글래스모피즘 패널 (화이트 라이트 테마) */
+        .glass-panel {
+            background: rgba(255, 255, 255, 0.88);
+            backdrop-filter: blur(14px);
+            -webkit-backdrop-filter: blur(14px);
+            border: 1px solid rgba(15, 23, 42, 0.1);
+            box-shadow: 0 10px 25px -8px rgba(15, 23, 42, 0.08);
+        }
+
+        .airbnb-gradient {
+            background: linear-gradient(135deg, #FF385C 0%, #E31C5F 55%, #BD1E59 100%);
+        }
+
+        /* 가로 스크롤바 숨김 */
+        .no-scrollbar::-webkit-scrollbar { display: none; }
+        .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+    </style>
+</head>
+<body>
+    <div id="app-frame" class="app-shell flex flex-col justify-between">
+        <!-- 상단 토스트 알림 -->
+        <div id="toast-banner" class="fixed top-4 left-1/2 -translate-x-1/2 z-50 pointer-events-none opacity-0 transition-all duration-300 w-[90%] max-w-[390px]">
+            <div class="glass-panel rounded-2xl px-4 py-3 shadow-xl flex items-center gap-3 border border-slate-200">
+                <span class="w-2.5 h-2.5 rounded-full bg-[#FF385C] animate-ping shrink-0"></span>
+                <p id="toast-text" class="text-xs font-semibold text-slate-900 leading-snug"></p>
+            </div>
+        </div>
+
+        <!-- =========================================================
+             STEP 0: 진입 화면 (캠페인 인트로 & 여행지 선택 모드)
+        ========================================================== -->
+        <section id="step-enter" class="flex-1 flex flex-col justify-between p-6 relative z-10 bg-white">
+            <!-- 배경 앰비언트 -->
+            <div class="absolute inset-0 pointer-events-none overflow-hidden">
+                <div class="absolute -top-24 -right-24 w-72 h-72 rounded-full bg-[#FF385C]/10 blur-3xl"></div>
+                <div class="absolute bottom-10 -left-20 w-64 h-64 rounded-full bg-rose-200/40 blur-3xl"></div>
+            </div>
+
+            <!-- 헤더 -->
+            <div class="relative z-10 flex items-center justify-between pt-1">
+                <div class="flex items-center gap-2">
+                    <div class="w-8 h-8 rounded-xl airbnb-gradient flex items-center justify-center shadow-md">
+                        <i class="fa-brands fa-airbnb text-white text-lg"></i>
+                    </div>
+                    <span class="text-xs font-bold tracking-wider uppercase text-slate-800">Wall Breaker AR</span>
+                </div>
+                <span class="text-[11px] px-2.5 py-1 rounded-full bg-slate-100 text-slate-600 font-semibold border border-slate-200">
+                    OOH · AR 연동
+                </span>
+            </div>
+
+            <!-- 메인 카피 & 프리뷰 카드 -->
+            <div class="relative z-10 my-auto py-4 space-y-5">
+                <div class="space-y-2.5">
+                    <p class="text-xs font-bold text-[#FF385C] tracking-wide">기대어 쉬는 벽, 열리는 세상</p>
+                    <h1 class="text-[26px] font-extrabold leading-tight tracking-tight text-slate-900">
+                        답답한 일상 벽을 두드려<br>
+                        <span class="text-transparent bg-clip-text bg-gradient-to-r from-[#FF385C] via-rose-500 to-amber-500">
+                            숙소 창밖의 세상
+                        </span>을 여세요
+                    </h1>
+                    <p class="text-xs text-slate-600 leading-relaxed">
+                        벽에 주먹을 휘두르거나 화면을 두드리면 공간이 열립니다. 아늑한 숙소 인테리어와 창문 너머로 펼쳐지는 랜드마크를 경험하고 미래의 나에게 타임캡슐 엽서를 보내보세요.
+                    </p>
+                </div>
+
+                <!-- 프리뷰 썸네일 카드 -->
+                <div class="relative rounded-3xl overflow-hidden border border-slate-200 shadow-lg aspect-[16/10] bg-slate-100">
+                    <img src="https://images.unsplash.com/photo-1600585154340-be6161a56a0c?auto=format&fit=crop&w=900&q=80"
+                         alt="숙소 인테리어 미리보기"
+                         class="w-full h-full object-cover"
+                         onerror="this.src='https://placehold.co/800x500/f1f5f9/334155?text=Airbnb+Window+View'">
+                    <div class="absolute inset-0 bg-gradient-to-t from-slate-900/75 via-slate-900/15 to-transparent flex flex-col justify-end p-4">
+                        <div class="flex items-center justify-between">
+                            <div>
+                                <span class="text-[10px] font-semibold uppercase tracking-wider text-rose-200">Live Window Portal</span>
+                                <p class="text-sm font-bold text-white">거실 통창 너머 마주하는 바르셀로나 · 스위스</p>
+                            </div>
+                            <span class="w-9 h-9 rounded-full bg-white/90 backdrop-blur flex items-center justify-center text-[#FF385C] text-xs shadow">
+                                <i class="fa-solid fa-wand-magic-sparkles"></i>
+                            </span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 하단 여행지 선택 & 시작 버튼 영역 -->
+            <div class="relative z-10 space-y-3 pb-2">
+                <div class="grid grid-cols-2 gap-2">
+                    <button id="btn-mode-random" type="button"
+                            class="py-2.5 px-3 rounded-2xl bg-slate-100 hover:bg-slate-200/70 border border-slate-200 text-xs font-bold text-slate-800 flex items-center justify-center gap-1.5 active:scale-95 transition">
+                        <i class="fa-solid fa-shuffle text-[#FF385C]"></i>
+                        <span>랜덤 여행지</span>
+                    </button>
+                    <button id="btn-mode-search" type="button"
+                            class="py-2.5 px-3 rounded-2xl bg-slate-100 hover:bg-slate-200/70 border border-slate-200 text-xs font-bold text-slate-800 flex items-center justify-center gap-1.5 active:scale-95 transition">
+                        <i class="fa-solid fa-magnifying-glass text-[#FF385C]"></i>
+                        <span>여행지 선택</span>
+                    </button>
+                </div>
+
+                <!-- 여행지 키워드 검색 입력창 -->
+                <div id="dest-search-panel" class="hidden flex gap-2">
+                    <input id="dest-search-input" type="text" placeholder="바르셀로나, 스위스, 제주, 파리..."
+                           class="flex-1 px-3.5 py-2.5 rounded-2xl bg-slate-50 border border-slate-200 text-xs text-slate-900 placeholder-slate-400 focus:outline-none focus:border-[#FF385C]">
+                    <button id="btn-apply-search" type="button"
+                            class="px-4 py-2.5 rounded-2xl bg-slate-900 text-white font-extrabold text-xs active:scale-95 transition">
+                        적용
+                    </button>
+                </div>
+
+                <!-- 랜덤 선택 시 벽 너머 나라를 미리 예측해 보는 힌트 창 -->
+                <div id="random-predict-box" class="hidden bg-rose-50/90 rounded-2xl px-3.5 py-2.5 border border-rose-200 flex items-center justify-between gap-2">
+                    <div class="min-w-0 space-y-0.5">
+                        <div class="flex items-center gap-1.5">
+                            <span class="text-[10px] font-extrabold text-[#FF385C] uppercase tracking-wider">예측 힌트 창</span>
+                            <span id="predict-region-tag" class="text-[10px] px-1.5 py-0.5 rounded-md bg-white text-slate-700 border border-rose-100 font-semibold"></span>
+                        </div>
+                        <p id="predict-hint-text" class="text-[11px] font-bold text-slate-800 truncate">벽 너머 숙소의 힌트를 확인해보세요</p>
+                    </div>
+                    <button id="btn-toggle-predict-answer" type="button"
+                            class="shrink-0 px-2.5 py-1.5 rounded-xl bg-white hover:bg-rose-100 border border-rose-200 text-[10px] font-extrabold text-[#FF385C] active:scale-95 transition">
+                        나라 보기
+                    </button>
+                </div>
+
+                <button id="btn-start-ar" type="button"
+                        class="w-full py-4 rounded-2xl airbnb-gradient text-white font-extrabold text-sm shadow-lg shadow-rose-500/25 flex items-center justify-center gap-2 active:scale-95 transition">
+                    <i class="fa-solid fa-hand-fist text-base"></i>
+                    <span>벽 두드리고 숙소 열기</span>
+                </button>
+            </div>
+        </section>
+
+        <!-- =========================================================
+             STEP 1: AR 벽 부수기 & 숙소 내부 탐험 화면
+        ========================================================== -->
+        <section id="step-ar" class="hidden flex-1 relative flex flex-col justify-between overflow-hidden bg-slate-100">
+            <!-- 웹캠/모바일 카메라 비디오 (캔버스 배경 & 모션 감지용) -->
+            <video id="camera-feed" class="hidden" autoplay playsinline muted></video>
+
+            <!-- 메인 AR 캔버스 -->
+            <canvas id="ar-canvas" class="absolute inset-0 w-full h-full block touch-none"></canvas>
+
+            <!-- 상단 상태 바 -->
+            <div id="escape-top-panel" class="relative z-20 p-4 flex items-center justify-between">
+                <button id="btn-back-home" type="button"
+                        class="w-9 h-9 rounded-full glass-panel flex items-center justify-center text-slate-700 hover:text-slate-900 active:scale-95">
+                    <i class="fa-solid fa-chevron-left text-xs"></i>
+                </button>
+
+                <div class="glass-panel px-3.5 py-1.5 rounded-full flex items-center gap-2">
+                    <span class="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
+                    <span id="ar-status-label" class="text-xs font-bold text-slate-800">일상 벽 감지됨</span>
+                </div>
+
+                <button id="btn-toggle-clean-view" type="button"
+                        class="w-9 h-9 rounded-full glass-panel flex items-center justify-center text-slate-700 hover:text-slate-900 active:scale-95"
+                        title="UI 숨기고 인테리어만 보기">
+                    <i class="fa-solid fa-eye-slash text-xs"></i>
+                </button>
+            </div>
+
+            <!-- UI 숨김 상태일 때 복원 바 -->
+            <div id="clean-view-restore-bar" class="hidden relative z-20 p-4 flex justify-end">
+                <button id="btn-restore-ui" type="button"
+                        class="glass-panel px-3.5 py-2 rounded-full text-xs font-bold text-slate-800 flex items-center gap-1.5 shadow-lg">
+                    <i class="fa-solid fa-eye text-[#FF385C]"></i>
+                    <span>버튼 다시 보기</span>
+                </button>
+            </div>
+
+            <!-- 벽 부수기 전 타격 타겟 오버레이 -->
+            <div id="ar-target-overlay" class="relative z-20 my-auto flex flex-col items-center justify-center px-6 text-center space-y-5 pointer-events-none">
+                <div id="reticle-progress-ring"
+                     class="w-36 h-36 rounded-full border-2 border-dashed border-[#FF385C] bg-white/80 backdrop-blur-sm flex flex-col items-center justify-center shadow-xl transition-transform">
+                    <i class="fa-solid fa-hand-fist text-3xl text-[#FF385C] mb-1"></i>
+                    <span class="text-xs font-extrabold text-slate-800"><span id="hit-counter">0</span> / 5 회</span>
+                </div>
+
+                <div class="space-y-1 bg-white/85 backdrop-blur-md px-4 py-2.5 rounded-2xl border border-slate-200/80 shadow-sm">
+                    <p class="text-base font-extrabold text-slate-900">주먹을 휘두르거나 손가락으로 터치해 벽을 부수세요</p>
+                    <p class="text-xs text-slate-600">5번 타격하면 벽 너머 아늑한 숙소 공간이 열립니다</p>
+                </div>
+            </div>
+
+            <!-- 벽 열린 후 숙소 내부 & 물건 수집 / 타임캡슐 이동 패널 -->
+            <div id="ar-escape-overlay" class="hidden relative z-20 mt-auto p-4 space-y-3">
+                <div class="glass-panel rounded-3xl p-4 space-y-3 shadow-xl">
+                    <div class="flex items-start justify-between gap-2">
+                        <div>
+                            <span id="layer-badge" class="inline-block text-[10px] font-extrabold px-2 py-0.5 rounded-md bg-[#FF385C] text-white mb-1">LAYER 1</span>
+                            <h2 id="escape-dest-title" class="text-sm font-extrabold text-slate-900">바르셀로나 에이샴플레 테라스 홈</h2>
+                            <p id="escape-dest-desc" class="text-[11px] text-slate-600 leading-snug mt-0.5">따뜻한 노을빛 거실 인테리어와 여행 기념품을 둘러보세요.</p>
+                        </div>
+                    </div>
+
+                    <!-- 수집한 기념품 현황 바 -->
+                    <div class="px-3 py-2 rounded-2xl bg-amber-50/95 border border-amber-200 flex items-center justify-between gap-2">
+                        <div class="min-w-0">
+                            <p class="text-[10px] font-bold text-amber-700">🧳 여행 가방 (<span id="souvenir-count">0</span>/3)</p>
+                            <p id="souvenir-list-label" class="text-[11px] text-slate-700 truncate">화면 속 반짝이는 물건을 눌러 가져오세요</p>
+                        </div>
+                        <button id="btn-grab-random-item" type="button"
+                                class="shrink-0 px-3 py-1.5 rounded-xl bg-amber-500 text-white font-bold text-[11px] shadow-sm active:scale-95 transition">
+                            + 물건 줍기
+                        </button>
+                    </div>
+
+                    <div class="grid grid-cols-2 gap-2">
+                        <button id="btn-break-next-layer" type="button"
+                                class="py-3 px-3 rounded-2xl bg-slate-100 hover:bg-slate-200/80 border border-slate-200 text-xs font-bold text-slate-800 flex items-center justify-center gap-1.5 active:scale-95 transition">
+                            <i class="fa-solid fa-layer-group text-[#FF385C]"></i>
+                            <span>다른 숙소 열기</span>
+                        </button>
+                        <button id="btn-claim-reward" type="button"
+                                class="py-3 px-3 rounded-2xl airbnb-gradient text-xs font-extrabold text-white flex items-center justify-center gap-1.5 shadow-md active:scale-95 transition">
+                            <i class="fa-solid fa-envelope-open-text"></i>
+                            <span>타임캡슐 엽서 쓰기</span>
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- =========================================================
+             STEP 2~4: 미래의 나에게 보내는 '여행 타임캡슐 엽서' & 위시리스트 전환
+        ========================================================== -->
+        <section id="step-result" class="hidden flex-1 flex flex-col justify-between p-5 bg-slate-50 overflow-y-auto no-scrollbar space-y-5">
+            <!-- 상단 헤더 -->
+            <div class="flex items-center justify-between pt-1">
+                <button id="btn-result-back-ar" type="button"
+                        class="w-9 h-9 rounded-full bg-white border border-slate-200 flex items-center justify-center text-slate-700 hover:text-slate-900 shadow-sm">
+                    <i class="fa-solid fa-arrow-left text-xs"></i>
+                </button>
+                <span class="text-xs font-extrabold text-slate-900">미래의 나에게 보내는 여행 타임캡슐</span>
+                <span class="text-[11px] font-bold text-[#FF385C]">4-Step</span>
+            </div>
+
+            <!-- 엽서 프리뷰 카드 -->
+            <div id="postcard-preview-box" class="relative rounded-3xl overflow-hidden border border-slate-200 bg-white shadow-lg">
+                <div class="relative h-40 w-full overflow-hidden">
+                    <img id="result-dest-img"
+                         src="https://images.unsplash.com/photo-1600585154340-be6161a56a0c?auto=format&fit=crop&w=900&q=80"
+                         alt="엽서 배경"
+                         class="w-full h-full object-cover"
+                         onerror="this.src='https://placehold.co/800x450/f1f5f9/334155?text=Time+Capsule+Postcard'">
+                    <div class="absolute inset-0 bg-gradient-to-t from-black/55 via-black/15 to-transparent"></div>
+                    <div class="absolute top-3 left-3 bg-white/95 backdrop-blur px-2.5 py-1 rounded-full text-[10px] font-bold text-slate-800 shadow-sm">
+                        <i class="fa-solid fa-location-dot text-[#FF385C] mr-1"></i>
+                        <span id="result-dest-name">스페인 바르셀로나</span>
+                    </div>
+                    <div class="absolute top-3 right-3 bg-[#FF385C] px-2.5 py-1 rounded-full text-[10px] font-bold text-white shadow-sm">
+                        <span id="postcard-open-date-badge">2027.05 개봉 예정</span>
+                    </div>
+                </div>
+                <div class="p-4 space-y-1.5 bg-white">
+                    <p id="postcard-message-preview" class="text-sm font-bold text-slate-900 leading-snug">
+                        “#퇴근길한숨 끝내고 #6개월뒤엔여기 에서 창밖 노을을 보며 쉴 나에게”
+                    </p>
+                    <p id="postcard-souvenir-preview" class="text-[11px] text-amber-700 font-semibold hidden"></p>
+                    <p class="text-[11px] text-slate-500 flex items-center justify-between pt-1">
+                        <span>발신: 오늘의 나 (2026.11)</span>
+                        <span id="postcard-stay-tag" class="text-[#FF385C] font-bold">선물 숙소 선택 대기중</span>
+                    </p>
+                </div>
+            </div>
+
+            <!-- STEP 1: 제로-타이핑(Zero-Typing) 엽서 봉인 -->
+            <div class="bg-white rounded-3xl p-4 space-y-3 border border-slate-200 shadow-sm">
+                <div class="flex items-center justify-between">
+                    <span class="text-xs font-extrabold text-slate-900">STEP 1. 5초 제로-타이핑 엽서 칩 선택</span>
+                    <span class="text-[10px] text-[#FF385C] font-bold">원터치 완성</span>
+                </div>
+
+                <!-- 상황·다짐 칩 -->
+                <div class="flex flex-wrap gap-1.5" id="chip-group">
+                    <button type="button" data-chip="#야근탈출" class="mood-chip px-3 py-1.5 rounded-full text-xs font-semibold bg-slate-100 text-slate-700 border border-slate-200 transition">#야근탈출</button>
+                    <button type="button" data-chip="#시험끝나고" class="mood-chip px-3 py-1.5 rounded-full text-xs font-semibold bg-slate-100 text-slate-700 border border-slate-200 transition">#시험끝나고</button>
+                    <button type="button" data-chip="#퇴근길한숨" class="mood-chip active px-3 py-1.5 rounded-full text-xs font-semibold bg-[#FF385C] text-white border border-[#FF385C] transition">#퇴근길한숨</button>
+                    <button type="button" data-chip="#6개월뒤엔여기" class="mood-chip active px-3 py-1.5 rounded-full text-xs font-semibold bg-[#FF385C] text-white border border-[#FF385C] transition">#6개월뒤엔여기</button>
+                    <button type="button" data-chip="#이번엔진짜간다" class="mood-chip px-3 py-1.5 rounded-full text-xs font-semibold bg-slate-100 text-slate-700 border border-slate-200 transition">#이번엔진짜간다</button>
+                </div>
+
+                <!-- 도착 시점 선택 -->
+                <div class="pt-1 space-y-1.5">
+                    <p class="text-[11px] text-slate-500 font-semibold">도착 시점 설정</p>
+                    <div class="grid grid-cols-3 gap-1.5" id="timing-group">
+                        <button type="button" data-timing="3개월 뒤 금요일 퇴근길" data-date="2027.02"
+                                class="timing-btn py-2 px-2 rounded-xl bg-slate-50 border border-slate-200 text-[11px] font-semibold text-slate-700 text-center leading-tight">
+                            3개월 뒤<br>금요일 퇴근길
+                        </button>
+                        <button type="button" data-timing="6개월 뒤 첫 연휴 전날" data-date="2027.05"
+                                class="timing-btn active py-2 px-2 rounded-xl bg-rose-50 border border-[#FF385C] text-[11px] font-bold text-[#FF385C] text-center leading-tight">
+                            6개월 뒤<br>첫 연휴 전날
+                        </button>
+                        <button type="button" data-timing="첫눈·초여름이 올 때" data-date="2027.06"
+                                class="timing-btn py-2 px-2 rounded-xl bg-slate-50 border border-slate-200 text-[11px] font-semibold text-slate-700 text-center leading-tight">
+                            이 여행지에<br>초여름 올 때
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- STEP 2: 타임캡슐 속 '미래의 나에게 선물할 숙소 1곳 담기' -->
+            <div class="bg-white rounded-3xl p-4 space-y-3 border border-slate-200 shadow-sm">
+                <div class="space-y-1">
+                    <span class="text-xs font-extrabold text-slate-900">STEP 2. 미래의 나에게 선물할 숙소 1곳 담기</span>
+                    <p class="text-[11px] text-slate-600 leading-relaxed">
+                        방금 마주한 창밖 풍경과 연결된 실제 전망 숙소예요. 하트(♥)를 눌러 타임캡슐 봉투에 함께 넣어두세요.
+                    </p>
+                </div>
+
+                <div id="stay-cards-container" class="flex gap-3 overflow-x-auto no-scrollbar pb-1">
+                    <!-- JS로 동적 렌더링 -->
+                </div>
+            </div>
+
+            <!-- STEP 3 & 4: 앱 내 [타임캡슐 전용 위시리스트] 자동 생성 & 개봉 미리보기 -->
+            <div id="wishlist-sealed-panel" class="hidden rounded-3xl p-4 bg-gradient-to-r from-rose-50 to-white border border-rose-200 space-y-3 shadow-md">
+                <div class="flex items-center gap-3">
+                    <div class="w-11 h-11 rounded-2xl airbnb-gradient flex items-center justify-center text-white text-lg shrink-0 shadow-md">
+                        <i class="fa-solid fa-envelope-open-text"></i>
+                    </div>
+                    <div class="min-w-0">
+                        <span class="text-[10px] font-bold text-[#FF385C] uppercase tracking-wider">STEP 3 · 위시리스트 폴더 생성 완료</span>
+                        <h3 id="wishlist-folder-title" class="text-sm font-extrabold text-slate-900 truncate">
+                            💌 [2027.05 개봉 예정] 나의 바르셀로나 도피처
+                        </h3>
+                        <p class="text-[11px] text-slate-600 truncate">AR 통창 스냅샷 + 엽서 + 찜한 숙소 저장됨</p>
+                    </div>
+                </div>
+
+                <div class="grid grid-cols-2 gap-2">
+                    <button id="btn-share-capsule" type="button"
+                            class="relative z-10 cursor-pointer py-3 px-2.5 rounded-2xl bg-white hover:bg-slate-50 border border-slate-200 text-slate-800 font-bold text-xs flex items-center justify-center gap-1.5 active:scale-95 transition">
+                        <i class="fa-solid fa-share-nodes text-[#FF385C]"></i>
+                        <span id="btn-share-capsule-label">친구에게 공유하기</span>
+                    </button>
+                    <button id="btn-preview-future-open" type="button"
+                            class="relative z-10 cursor-pointer py-3 px-2.5 rounded-2xl bg-slate-900 text-white font-extrabold text-xs flex items-center justify-center gap-1.5 shadow-sm active:scale-95 transition">
+                        <i class="fa-solid fa-bell text-rose-400"></i>
+                        <span>개봉 알림 미리보기</span>
+                    </button>
+                </div>
+            </div>
+
+            <!-- 공유 초대장 미리보기 및 복사 완료 안내 카드 -->
+            <div id="share-preview-modal" class="hidden fixed inset-0 z-50 bg-slate-900/45 backdrop-blur-sm flex items-end sm:items-center justify-center p-4">
+                <div class="w-full max-w-[400px] bg-white border border-slate-200 rounded-3xl p-5 space-y-4 shadow-2xl">
+                    <div class="flex items-center justify-between">
+                        <span class="text-[11px] font-bold px-2.5 py-1 rounded-full bg-rose-50 text-[#FF385C] border border-rose-100">
+                            <i class="fa-solid fa-paper-plane mr-1"></i>친구 초대장 준비 완료
+                        </span>
+                        <button id="btn-close-share-modal" type="button" class="w-8 h-8 rounded-full bg-slate-100 text-slate-600 flex items-center justify-center">
+                            <i class="fa-solid fa-xmark text-xs"></i>
+                        </button>
+                    </div>
+                    <div class="space-y-1.5">
+                        <h4 class="text-base font-extrabold text-slate-900">초대장이 클립보드에 복사되었어요!</h4>
+                        <p class="text-[11px] text-slate-500">카카오톡이나 메시지에 바로 붙여넣기 해보세요.</p>
+                        <textarea id="share-invite-textarea" readonly rows="5"
+                                  class="w-full p-3 rounded-2xl bg-slate-50 border border-slate-200 text-xs text-slate-800 leading-relaxed focus:outline-none"></textarea>
+                    </div>
+                    <button id="btn-copy-invite-again" type="button"
+                            class="w-full py-3 rounded-2xl airbnb-gradient text-xs font-extrabold text-white flex items-center justify-center gap-1.5 shadow-md active:scale-95">
+                        <i class="fa-regular fa-copy"></i>
+                        <span>초대 문구 다시 복사하기</span>
+                    </button>
+                </div>
+            </div>
+        </section>
+
+        <!-- =========================================================
+             STEP 4 모달: 미래 개봉 알림 & 위시리스트 재활성화 시뮬레이션
+        ========================================================== -->
+        <div id="future-modal" class="hidden fixed inset-0 z-50 bg-slate-900/45 backdrop-blur-sm flex items-end sm:items-center justify-center p-4">
+            <div class="w-full max-w-[400px] bg-white border border-slate-200 rounded-3xl p-5 space-y-4 shadow-2xl">
+                <div class="flex items-center justify-between">
+                    <span class="text-[11px] font-bold px-2.5 py-1 rounded-full bg-rose-50 text-[#FF385C] border border-rose-100">
+                        <i class="fa-solid fa-clock-rotate-left mr-1"></i>타임캡슐 도착 알림
+                    </span>
+                    <button id="btn-close-future-modal" type="button" class="w-8 h-8 rounded-full bg-slate-100 text-slate-600 flex items-center justify-center">
+                        <i class="fa-solid fa-xmark text-xs"></i>
+                    </button>
+                </div>
+
+                <div class="space-y-1.5">
+                    <h4 id="modal-open-headline" class="text-base font-extrabold text-slate-900">
+                        6개월 전의 나로부터 여행 엽서가 도착했어요!
+                    </h4>
+                    <p id="modal-open-quote" class="text-xs text-slate-800 bg-rose-50/70 p-3 rounded-2xl border border-rose-100 leading-relaxed font-medium">
+                        “#퇴근길한숨 끝내고 #6개월뒤엔여기 에서 창밖 노을을 보며 쉴 나에게”
+                    </p>
+                </div>
+
+                <div class="p-3.5 rounded-2xl bg-slate-50 border border-slate-200 flex items-center justify-between">
+                    <div>
+                        <p id="modal-stay-name" class="text-xs font-bold text-slate-900">사그라다 파밀리아 뷰 테라스 로프트</p>
+                        <p class="text-[11px] text-emerald-600 font-semibold mt-0.5">● 다가오는 연휴 예약 가능 일정 열림</p>
+                    </div>
+                    <span id="modal-stay-price" class="text-xs font-extrabold text-slate-900">₩245,000/박</span>
+                </div>
+
+                <div class="grid grid-cols-2 gap-2.5 pt-1">
+                    <button id="btn-invite-friend" type="button"
+                            class="py-3 rounded-2xl bg-slate-100 hover:bg-slate-200/70 text-xs font-bold text-slate-800 flex items-center justify-center gap-1.5 active:scale-95">
+                        <i class="fa-solid fa-user-group text-[#FF385C]"></i>
+                        <span>동행 초대·투표</span>
+                    </button>
+                    <button id="btn-book-now" type="button"
+                            class="py-3 rounded-2xl airbnb-gradient text-xs font-extrabold text-white flex items-center justify-center gap-1.5 shadow-md active:scale-95">
+                        <i class="fa-solid fa-calendar-check"></i>
+                        <span>일정 선택하기</span>
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // =========================================================
+        // 1. 핵심 상태, DOM 참조 및 여행지 데이터 초기화
+        // =========================================================
+        const ROOM_INTERIOR_POOL = [
+            {
+                img: 'https://images.unsplash.com/photo-1600585154340-be6161a56a0c?auto=format&fit=crop&w=1600&q=85',
+                thumb: 'https://images.unsplash.com/photo-1600585154340-be6161a56a0c?auto=format&fit=crop&w=600&q=80',
+                vibe: '따뜻한 햇살 테라스 홈'
+            },
+            {
+                img: 'https://images.unsplash.com/photo-1513694203232-719a280e022f?auto=format&fit=crop&w=1600&q=85',
+                thumb: 'https://images.unsplash.com/photo-1513694203232-719a280e022f?auto=format&fit=crop&w=600&q=80',
+                vibe: '포근한 우드 샬레 라운지'
+            },
+            {
+                img: 'https://images.unsplash.com/photo-1600210492486-724fe5c67fb0?auto=format&fit=crop&w=1600&q=85',
+                thumb: 'https://images.unsplash.com/photo-1600210492486-724fe5c67fb0?auto=format&fit=crop&w=600&q=80',
+                vibe: '미니멀 오션 리빙룸'
+            },
+            {
+                img: 'https://images.unsplash.com/photo-1600607687939-ce8a6c25118c?auto=format&fit=crop&w=1600&q=85',
+                thumb: 'https://images.unsplash.com/photo-1600607687939-ce8a6c25118c?auto=format&fit=crop&w=600&q=80',
+                vibe: '모던 아키텍처 스위트'
+            },
+            {
+                img: 'https://images.unsplash.com/photo-1600566753376-12c8ab7fb75b?auto=format&fit=crop&w=1600&q=85',
+                thumb: 'https://images.unsplash.com/photo-1600566753376-12c8ab7fb75b?auto=format&fit=crop&w=600&q=80',
+                vibe: '내추럴 린넨 스튜디오'
+            },
+            {
+                img: 'https://images.unsplash.com/photo-1616594039964-ae9021a400a0?auto=format&fit=crop&w=1600&q=85',
+                thumb: 'https://images.unsplash.com/photo-1616594039964-ae9021a400a0?auto=format&fit=crop&w=600&q=80',
+                vibe: '프라이빗 선셋 레지던스'
+            },
+            {
+                img: 'https://images.unsplash.com/photo-1600585152220-90363fe7e115?auto=format&fit=crop&w=1600&q=85',
+                thumb: 'https://images.unsplash.com/photo-1600585152220-90363fe7e115?auto=format&fit=crop&w=600&q=80',
+                vibe: '썬릿 다이닝 라운지'
+            },
+            {
+                img: 'https://images.unsplash.com/photo-1600573472591-ee6b68d14c68?auto=format&fit=crop&w=1600&q=85',
+                thumb: 'https://images.unsplash.com/photo-1600573472591-ee6b68d14c68?auto=format&fit=crop&w=600&q=80',
+                vibe: '갤러리 무드 리빙룸'
+            },
+            {
+                img: 'https://images.unsplash.com/photo-1586023492125-27b2c045efd7?auto=format&fit=crop&w=1600&q=85',
+                thumb: 'https://images.unsplash.com/photo-1586023492125-27b2c045efd7?auto=format&fit=crop&w=600&q=80',
+                vibe: '벨벳 소파 아틀리에'
+            },
+            {
+                img: 'https://images.unsplash.com/photo-1618221195710-dd6b41faaea6?auto=format&fit=crop&w=1600&q=85',
+                thumb: 'https://images.unsplash.com/photo-1618221195710-dd6b41faaea6?auto=format&fit=crop&w=600&q=80',
+                vibe: '코지 웜톤 스위트룸'
+            },
+            {
+                img: 'https://images.unsplash.com/photo-1615873968403-89e068629265?auto=format&fit=crop&w=1600&q=85',
+                thumb: 'https://images.unsplash.com/photo-1615873968403-89e068629265?auto=format&fit=crop&w=600&q=80',
+                vibe: '북유럽 우드 스튜디오'
+            },
+            {
+                img: 'https://images.unsplash.com/photo-1600607687644-c7171b42498f?auto=format&fit=crop&w=1600&q=85',
+                thumb: 'https://images.unsplash.com/photo-1600607687644-c7171b42498f?auto=format&fit=crop&w=600&q=80',
+                vibe: '하이실링 모던 홀'
+            },
+            {
+                img: 'https://images.unsplash.com/photo-1600566752355-35792bedcfea?auto=format&fit=crop&w=1600&q=85',
+                thumb: 'https://images.unsplash.com/photo-1600566752355-35792bedcfea?auto=format&fit=crop&w=600&q=80',
+                vibe: '카밍 스톤 리빙룸'
+            },
+            {
+                img: 'https://images.unsplash.com/photo-1505693416388-ac5ce068fe85?auto=format&fit=crop&w=1600&q=85',
+                thumb: 'https://images.unsplash.com/photo-1505693416388-ac5ce068fe85?auto=format&fit=crop&w=600&q=80',
+                vibe: '트랜퀼 파빌리온 룸'
+            },
+            {
+                img: 'https://images.unsplash.com/photo-1560448204-e02f11c3d0e2?auto=format&fit=crop&w=1600&q=85',
+                thumb: 'https://images.unsplash.com/photo-1560448204-e02f11c3d0e2?auto=format&fit=crop&w=600&q=80',
+                vibe: '어반 테라스 아파트먼트'
+            },
+            {
+                img: 'https://images.unsplash.com/photo-1522708323590-d24dbb6b0267?auto=format&fit=crop&w=1600&q=85',
+                thumb: 'https://images.unsplash.com/photo-1522708323590-d24dbb6b0267?auto=format&fit=crop&w=600&q=80',
+                vibe: '선릿 로프트 리빙룸'
+            },
+            {
+                img: 'https://images.unsplash.com/photo-1502672260266-1c1ef2d93688?auto=format&fit=crop&w=1600&q=85',
+                thumb: 'https://images.unsplash.com/photo-1502672260266-1c1ef2d93688?auto=format&fit=crop&w=600&q=80',
+                vibe: '노르딕 파노라마 거실'
+            },
+            {
+                img: 'https://images.unsplash.com/photo-1560185127-6ed189bf02f2?auto=format&fit=crop&w=1600&q=85',
+                thumb: 'https://images.unsplash.com/photo-1560185127-6ed189bf02f2?auto=format&fit=crop&w=600&q=80',
+                vibe: '코지 가든 라운지'
+            }
+        ];
+
+        let usedRoomPoolCursor = 0;
+
+        // 중복 없이 고유한 숙소 인테리어 이미지를 순차 배정하는 헬퍼
+        function takeUniqueRoomPhoto(offsetHint = 0) {
+            const poolLen = ROOM_INTERIOR_POOL.length;
+            const idx = (usedRoomPoolCursor + offsetHint) % poolLen;
+            usedRoomPoolCursor = (usedRoomPoolCursor + 1) % poolLen;
+            return ROOM_INTERIOR_POOL[idx];
+        }
+
+        const DESTINATIONS = [
+            {
+                id: 'barcelona',
+                name: '스페인 바르셀로나',
+                shortName: '바르셀로나',
+                title: '바르셀로나 에이샴플레 테라스 홈',
+                desc: '따뜻한 지중해 햇살이 스며드는 거실과 스페인 로컬 기념품을 만나보세요.',
+                panoramaUrl: ROOM_INTERIOR_POOL[0].img,
+                souvenirs: [
+                    { id: 'bcn-1', name: '가우디 모자이크 타일', icon: 'TILE', kind: 'tile', rx: 0.34, ry: 0.66 },
+                    { id: 'bcn-2', name: '스페인 샹그리아 글라스', icon: 'GLASS', kind: 'sangria', rx: 0.52, ry: 0.72 },
+                    { id: 'bcn-3', name: '플라멩코 부채', icon: 'FAN', kind: 'fan', rx: 0.68, ry: 0.63 }
+                ],
+                stays: [
+                    { name: '사그라다 파밀리아 뷰 테라스 로프트', price: '₩245,000/박', tag: '테라스 스위트', img: ROOM_INTERIOR_POOL[0].thumb, fullImg: ROOM_INTERIOR_POOL[0].img },
+                    { name: '에이샴플레 아치 발코니 스위트', price: '₩198,000/박', tag: '부티크 홈', img: ROOM_INTERIOR_POOL[6].thumb, fullImg: ROOM_INTERIOR_POOL[6].img },
+                    { name: '고딕 지구 린넨 아트 스튜디오', price: '₩176,000/박', tag: '감성 로프트', img: ROOM_INTERIOR_POOL[7].thumb, fullImg: ROOM_INTERIOR_POOL[7].img }
+                ]
+            },
+            {
+                id: 'swiss',
+                name: '스위스 체르마트',
+                shortName: '스위스',
+                title: '체르마트 알파인 우드 샬레',
+                desc: '포근한 원목 샬레 거실과 스위스 알프스 기념품을 둘러보세요.',
+                panoramaUrl: ROOM_INTERIOR_POOL[1].img,
+                souvenirs: [
+                    { id: 'sws-1', name: '스위스 카우벨 종', icon: 'BELL', kind: 'cowbell', rx: 0.32, ry: 0.68 },
+                    { id: 'sws-2', name: '알프스 밀크 초콜릿 바', icon: 'CHOCO', kind: 'chocolate', rx: 0.50, ry: 0.73 },
+                    { id: 'sws-3', name: '마터호른 퐁듀 냄비', icon: 'POT', kind: 'fondue', rx: 0.69, ry: 0.65 }
+                ],
+                stays: [
+                    { name: '마터호른 뷰 파노라마 샬레', price: '₩380,000/박', tag: '알파인 샬레', img: ROOM_INTERIOR_POOL[1].thumb, fullImg: ROOM_INTERIOR_POOL[1].img },
+                    { name: '체르마트 벽난로 우드 캐빈', price: '₩310,000/박', tag: '원목 캐빈', img: ROOM_INTERIOR_POOL[8].thumb, fullImg: ROOM_INTERIOR_POOL[8].img },
+                    { name: '고르너그라트 스카이 우드 로지', price: '₩289,000/박', tag: '산장 스위트', img: ROOM_INTERIOR_POOL[9].thumb, fullImg: ROOM_INTERIOR_POOL[9].img }
+                ]
+            },
+            {
+                id: 'jeju',
+                name: '대한민국 제주',
+                shortName: '제주',
+                title: '성산 돌담 스테이 & 오션 라운지',
+                desc: '차분한 제주 숙소 거실과 제주도 시그니처 기념품을 챙겨보세요.',
+                panoramaUrl: ROOM_INTERIOR_POOL[2].img,
+                souvenirs: [
+                    { id: 'jej-1', name: '제주 돌하르방 피규어', icon: 'STONE', kind: 'dolhareubang', rx: 0.35, ry: 0.67 },
+                    { id: 'jej-2', name: '제주 감귤 바구니', icon: 'TANGERINE', kind: 'tangerine', rx: 0.53, ry: 0.71 },
+                    { id: 'jej-3', name: '해녀 태왁 & 바다 유리병', icon: 'SEA', kind: 'seabottle', rx: 0.67, ry: 0.64 }
+                ],
+                stays: [
+                    { name: '성산 오션 프라이빗 스테이', price: '₩220,000/박', tag: '오션 라운지', img: ROOM_INTERIOR_POOL[2].thumb, fullImg: ROOM_INTERIOR_POOL[2].img },
+                    { name: '애월 돌담 감성 독채 하우스', price: '₩185,000/박', tag: '독채 스테이', img: ROOM_INTERIOR_POOL[10].thumb, fullImg: ROOM_INTERIOR_POOL[10].img },
+                    { name: '구좌 귤밭 선셋 우드 빌라', price: '₩254,000/박', tag: '프라이빗 빌라', img: ROOM_INTERIOR_POOL[11].thumb, fullImg: ROOM_INTERIOR_POOL[11].img }
+                ]
+            },
+            {
+                id: 'paris',
+                name: '프랑스 파리',
+                shortName: '파리',
+                title: '파리 7구 오스만 스타일 아파트먼트',
+                desc: '클래식한 파리 아파트먼트 거실과 프랑스 감성 기념품을 둘러보세요.',
+                panoramaUrl: ROOM_INTERIOR_POOL[3].img,
+                souvenirs: [
+                    { id: 'prs-1', name: '파리 마카롱 기프트 박스', icon: 'MACARON', kind: 'macaron', rx: 0.33, ry: 0.66 },
+                    { id: 'prs-2', name: '에펠탑 미니 오브제', icon: 'TOWER', kind: 'eiffel', rx: 0.51, ry: 0.72 },
+                    { id: 'prs-3', name: '프랑스 향수 보틀', icon: 'PERFUME', kind: 'perfume', rx: 0.68, ry: 0.63 }
+                ],
+                stays: [
+                    { name: '에펠 뷰 오스만 아파트먼트', price: '₩340,000/박', tag: '오스만 스위트', img: ROOM_INTERIOR_POOL[3].thumb, fullImg: ROOM_INTERIOR_POOL[3].img },
+                    { name: '마레지구 채광 가득 빈티지 홈', price: '₩265,000/박', tag: '빈티지 아파트', img: ROOM_INTERIOR_POOL[12].thumb, fullImg: ROOM_INTERIOR_POOL[12].img },
+                    { name: '생제르맹 아틀리에 로프트', price: '₩295,000/박', tag: '아틀리에 홈', img: ROOM_INTERIOR_POOL[13].thumb, fullImg: ROOM_INTERIOR_POOL[13].img }
+                ]
+            },
+            {
+                id: 'tokyo',
+                name: '일본 도쿄',
+                shortName: '도쿄',
+                title: '나카메구로 미니멀 우드 레지던스',
+                desc: '정갈한 도쿄 레지던스 거실과 일본 전통·로컬 소품을 만나보세요.',
+                panoramaUrl: ROOM_INTERIOR_POOL[4].img,
+                souvenirs: [
+                    { id: 'tky-1', name: '마네키네코 복고양이', icon: 'CAT', kind: 'manekineko', rx: 0.34, ry: 0.66 },
+                    { id: 'tky-2', name: '도쿄 벚꽃 부채 & 우산', icon: 'SAKURA', kind: 'fan', rx: 0.52, ry: 0.72 },
+                    { id: 'tky-3', name: '도자기 말차 다완', icon: 'TEA', kind: 'matcha', rx: 0.68, ry: 0.64 }
+                ],
+                stays: [
+                    { name: '나카메구로 미니멀 우드 하우스', price: '₩235,000/박', tag: '미니멀 하우스', img: ROOM_INTERIOR_POOL[4].thumb, fullImg: ROOM_INTERIOR_POOL[4].img },
+                    { name: '다이칸야마 디자이너 스튜디오', price: '₩278,000/박', tag: '디자인 스위트', img: ROOM_INTERIOR_POOL[14].thumb, fullImg: ROOM_INTERIOR_POOL[14].img },
+                    { name: '시부야 스카이 펜트하우스', price: '₩350,000/박', tag: '시티 펜트하우스', img: ROOM_INTERIOR_POOL[15].thumb, fullImg: ROOM_INTERIOR_POOL[15].img }
+                ]
+            },
+            {
+                id: 'kyoto',
+                name: '일본 교토',
+                shortName: '교토',
+                title: '기온 모던 마치야 료칸 스테이',
+                desc: '고즈넉한 교토 마치야 숙소와 교토 전통 공예품을 둘러보세요.',
+                panoramaUrl: ROOM_INTERIOR_POOL[5].img,
+                souvenirs: [
+                    { id: 'kyt-1', name: '교토 말차 찻잔 세트', icon: 'TEA', kind: 'matcha', rx: 0.33, ry: 0.67 },
+                    { id: 'kyt-2', name: '기온 비단 부채', icon: 'FAN', kind: 'fan', rx: 0.51, ry: 0.72 },
+                    { id: 'kyt-3', name: '행운의 마네키네코', icon: 'CAT', kind: 'manekineko', rx: 0.68, ry: 0.64 }
+                ],
+                stays: [
+                    { name: '기온 모던 마치야 독채', price: '₩290,000/박', tag: '모던 마치야', img: ROOM_INTERIOR_POOL[5].thumb, fullImg: ROOM_INTERIOR_POOL[5].img },
+                    { name: '아라시야마 대나무 정원 스테이', price: '₩260,000/박', tag: '정원 스테이', img: ROOM_INTERIOR_POOL[16].thumb, fullImg: ROOM_INTERIOR_POOL[16].img },
+                    { name: '히가시야마 티하우스 레지던스', price: '₩240,000/박', tag: '티하우스 홈', img: ROOM_INTERIOR_POOL[17].thumb, fullImg: ROOM_INTERIOR_POOL[17].img }
+                ]
+            },
+            {
+                id: 'london',
+                name: '영국 런던',
+                shortName: '런던',
+                title: '노팅힐 브릭 타운하우스 스위트',
+                desc: '따뜻한 런던 타운하우스 거실과 영국 시그니처 기념품을 만나보세요.',
+                panoramaUrl: ROOM_INTERIOR_POOL[6].img,
+                souvenirs: [
+                    { id: 'ldn-1', name: '런던 2층 버스 오브제', icon: 'BUS', kind: 'bus', rx: 0.34, ry: 0.66 },
+                    { id: 'ldn-2', name: '로열 밀크티 틴캔', icon: 'TEA', kind: 'teatin', rx: 0.52, ry: 0.72 },
+                    { id: 'ldn-3', name: '영국 헤리티지 타탄 머그', icon: 'MUG', kind: 'mug', rx: 0.68, ry: 0.64 }
+                ],
+                stays: [
+                    { name: '노팅힐 파스텔 타운하우스', price: '₩315,000/박', tag: '타운하우스', img: ROOM_INTERIOR_POOL[6].thumb, fullImg: ROOM_INTERIOR_POOL[6].img },
+                    { name: '쇼디치 인더스트리얼 로프트', price: '₩255,000/박', tag: '아티스틱 로프트', img: ROOM_INTERIOR_POOL[7].thumb, fullImg: ROOM_INTERIOR_POOL[7].img },
+                    { name: '켄싱턴 가든 클래식 아파트', price: '₩330,000/박', tag: '클래식 스위트', img: ROOM_INTERIOR_POOL[8].thumb, fullImg: ROOM_INTERIOR_POOL[8].img }
+                ]
+            },
+            {
+                id: 'newyork',
+                name: '미국 뉴욕',
+                shortName: '뉴욕',
+                title: '소호 썬릿 캐스트아이언 로프트',
+                desc: '뉴욕 소호 로프트 인테리어와 뉴욕 로컬 기념품을 둘러보세요.',
+                panoramaUrl: ROOM_INTERIOR_POOL[9].img,
+                souvenirs: [
+                    { id: 'nyc-1', name: '자유의 여신상 미니어처', icon: 'STATUE', kind: 'statue', rx: 0.33, ry: 0.66 },
+                    { id: 'nyc-2', name: '브루클린 스페셜티 컵', icon: 'COFFEE', kind: 'mug', rx: 0.51, ry: 0.72 },
+                    { id: 'nyc-3', name: '뉴욕 빈티지 옐로 캡 모형', icon: 'CAB', kind: 'bus', rx: 0.68, ry: 0.63 }
+                ],
+                stays: [
+                    { name: '소호 썬릿 캐스트아이언 로프트', price: '₩395,000/박', tag: '소호 로프트', img: ROOM_INTERIOR_POOL[9].thumb, fullImg: ROOM_INTERIOR_POOL[9].img },
+                    { name: '웨스트빌리지 브라운스톤 홈', price: '₩360,000/박', tag: '브라운스톤', img: ROOM_INTERIOR_POOL[10].thumb, fullImg: ROOM_INTERIOR_POOL[10].img },
+                    { name: '윌리엄스버그 리버사이드 스튜디오', price: '₩275,000/박', tag: '모던 스튜디오', img: ROOM_INTERIOR_POOL[11].thumb, fullImg: ROOM_INTERIOR_POOL[11].img }
+                ]
+            },
+            {
+                id: 'hawaii',
+                name: '미국 하와이',
+                shortName: '하와이',
+                title: '호놀룰루 트로피컬 리조트 빌라',
+                desc: '하와이 리조트 빌라 거실과 트로피컬 기념품을 챙겨보세요.',
+                panoramaUrl: ROOM_INTERIOR_POOL[12].img,
+                souvenirs: [
+                    { id: 'hwi-1', name: '하와이안 우쿨렐레', icon: 'UKE', kind: 'ukulele', rx: 0.34, ry: 0.67 },
+                    { id: 'hwi-2', name: '코나 파인애플 글라스', icon: 'PINE', kind: 'pineapple', rx: 0.52, ry: 0.72 },
+                    { id: 'hwi-3', name: '알로하 플라워 레이', icon: 'LEI', kind: 'flower', rx: 0.68, ry: 0.64 }
+                ],
+                stays: [
+                    { name: '와이키키 선셋 트로피컬 빌라', price: '₩370,000/박', tag: '리조트 빌라', img: ROOM_INTERIOR_POOL[12].thumb, fullImg: ROOM_INTERIOR_POOL[12].img },
+                    { name: '카일루아 비치 코티지', price: '₩320,000/박', tag: '비치 코티지', img: ROOM_INTERIOR_POOL[13].thumb, fullImg: ROOM_INTERIOR_POOL[13].img },
+                    { name: '마우이 마운틴뷰 가든 스위트', price: '₩298,000/박', tag: '가든 스위트', img: ROOM_INTERIOR_POOL[14].thumb, fullImg: ROOM_INTERIOR_POOL[14].img }
+                ]
+            },
+            {
+                id: 'gangneung',
+                name: '대한민국 강릉',
+                shortName: '강릉',
+                title: '안목 송림 우드 스테이',
+                desc: '강릉 우드 스테이 거실과 강릉 커피·바다 기념품을 둘러보세요.',
+                panoramaUrl: ROOM_INTERIOR_POOL[15].img,
+                souvenirs: [
+                    { id: 'gng-1', name: '안목 로스터리 핸드드립 컵', icon: 'COFFEE', kind: 'mug', rx: 0.34, ry: 0.66 },
+                    { id: 'gng-2', name: '강릉 솔방울 & 해송 오브제', icon: 'PINECONE', kind: 'pinecone', rx: 0.52, ry: 0.72 },
+                    { id: 'gng-3', name: '동해 조개껍질 유리병', icon: 'SHELL', kind: 'seabottle', rx: 0.68, ry: 0.64 }
+                ],
+                stays: [
+                    { name: '안목 송림 프라이빗 우드 스테이', price: '₩189,000/박', tag: '송림 스테이', img: ROOM_INTERIOR_POOL[15].thumb, fullImg: ROOM_INTERIOR_POOL[15].img },
+                    { name: '사천진 미니멀 코스트 하우스', price: '₩172,000/박', tag: '코스트 하우스', img: ROOM_INTERIOR_POOL[16].thumb, fullImg: ROOM_INTERIOR_POOL[16].img },
+                    { name: '경포 썬셋 테라스 펜션', price: '₩210,000/박', tag: '선셋 테라스', img: ROOM_INTERIOR_POOL[17].thumb, fullImg: ROOM_INTERIOR_POOL[17].img }
+                ]
+            },
+            {
+                id: 'busan',
+                name: '대한민국 부산',
+                shortName: '부산',
+                title: '해운대 모던 썬룸 레지던스',
+                desc: '부산 모던 레지던스 거실과 부산 특산 기념품을 만나보세요.',
+                panoramaUrl: ROOM_INTERIOR_POOL[16].img,
+                souvenirs: [
+                    { id: 'bsn-1', name: '부산 동백꽃 브로치', icon: 'CAMELLIA', kind: 'flower', rx: 0.34, ry: 0.67 },
+                    { id: 'bsn-2', name: '광안리 바다 유리병', icon: 'SEA', kind: 'seabottle', rx: 0.52, ry: 0.72 },
+                    { id: 'bsn-3', name: '해운대 모던 세라믹 컵', icon: 'MUG', kind: 'mug', rx: 0.68, ry: 0.64 }
+                ],
+                stays: [
+                    { name: '청사포 모던 썬룸 레지던스', price: '₩205,000/박', tag: '썬룸 스위트', img: ROOM_INTERIOR_POOL[16].thumb, fullImg: ROOM_INTERIOR_POOL[16].img },
+                    { name: '송정 서퍼 감성 우드 하우스', price: '₩178,000/박', tag: '서퍼 하우스', img: ROOM_INTERIOR_POOL[17].thumb, fullImg: ROOM_INTERIOR_POOL[17].img },
+                    { name: '전포 감성 디자이너 아파트', price: '₩165,000/박', tag: '시티 아파트', img: ROOM_INTERIOR_POOL[0].thumb, fullImg: ROOM_INTERIOR_POOL[0].img }
+                ]
+            },
+            {
+                id: 'rome',
+                name: '이탈리아 로마',
+                shortName: '로마',
+                title: '트라스테베레 테라코타 살롱',
+                desc: '이탈리아 로마의 감각적인 살롱 인테리어와 현지 기념품을 만나보세요.',
+                panoramaUrl: ROOM_INTERIOR_POOL[7].img,
+                souvenirs: [
+                    { id: 'rom-1', name: '로마 콜로세움 미니어처', icon: 'ARCH', kind: 'eiffel', rx: 0.34, ry: 0.66 },
+                    { id: 'rom-2', name: '이탈리아 에스프레소 잔', icon: 'ESPRESSO', kind: 'mug', rx: 0.52, ry: 0.72 },
+                    { id: 'rom-3', name: '아말피 레몬 세라믹 접시', icon: 'LEMON', kind: 'tangerine', rx: 0.68, ry: 0.64 }
+                ],
+                stays: [
+                    { name: '트라스테베레 테라코타 살롱', price: '₩268,000/박', tag: '로마 살롱', img: ROOM_INTERIOR_POOL[7].thumb, fullImg: ROOM_INTERIOR_POOL[7].img },
+                    { name: '나보나 광장 클래식 아파트', price: '₩310,000/박', tag: '클래식 홈', img: ROOM_INTERIOR_POOL[8].thumb, fullImg: ROOM_INTERIOR_POOL[8].img },
+                    { name: '몬티 언덕 모던 스튜디오', price: '₩225,000/박', tag: '모던 스튜디오', img: ROOM_INTERIOR_POOL[9].thumb, fullImg: ROOM_INTERIOR_POOL[9].img }
+                ]
+            },
+            {
+                id: 'lisbon',
+                name: '포르투갈 리스본',
+                shortName: '리스본',
+                title: '알파마 아줄레주 썬릿 홈',
+                desc: '따스한 리스본 햇살이 감도는 숙소와 포르투갈 기념품을 챙겨보세요.',
+                panoramaUrl: ROOM_INTERIOR_POOL[10].img,
+                souvenirs: [
+                    { id: 'lis-1', name: '리스본 아줄레주 타일', icon: 'TILE', kind: 'tile', rx: 0.34, ry: 0.67 },
+                    { id: 'lis-2', name: '포르투갈 에그타르트 박스', icon: 'TART', kind: 'macaron', rx: 0.52, ry: 0.72 },
+                    { id: 'lis-3', name: '황금빛 트램 오브제', icon: 'TRAM', kind: 'bus', rx: 0.68, ry: 0.64 }
+                ],
+                stays: [
+                    { name: '알파마 아줄레주 썬릿 홈', price: '₩212,000/박', tag: '썬릿 스위트', img: ROOM_INTERIOR_POOL[10].thumb, fullImg: ROOM_INTERIOR_POOL[10].img },
+                    { name: '치아두 부티크 아파트먼트', price: '₩248,000/박', tag: '부티크 홈', img: ROOM_INTERIOR_POOL[11].thumb, fullImg: ROOM_INTERIOR_POOL[11].img },
+                    { name: '미라도루 뷰 테라스 로프트', price: '₩230,000/박', tag: '테라스 로프트', img: ROOM_INTERIOR_POOL[12].thumb, fullImg: ROOM_INTERIOR_POOL[12].img }
+                ]
+            },
+            {
+                id: 'santorini',
+                name: '그리스 산토리니',
+                shortName: '산토리니',
+                title: '이아 화이트 & 블루 라운지',
+                desc: '지중해 감성이 담긴 산토리니 숙소와 그리스 로컬 아이템을 만나보세요.',
+                panoramaUrl: ROOM_INTERIOR_POOL[13].img,
+                souvenirs: [
+                    { id: 'san-1', name: '에게해 올리브 우드 컵', icon: 'OLIVE', kind: 'mug', rx: 0.34, ry: 0.66 },
+                    { id: 'san-2', name: '산토리니 블루 유리병', icon: 'SEA', kind: 'seabottle', rx: 0.52, ry: 0.72 },
+                    { id: 'san-3', name: '그리스 선셋 아로마 보틀', icon: 'SCENT', kind: 'perfume', rx: 0.68, ry: 0.64 }
+                ],
+                stays: [
+                    { name: '이아 화이트 & 블루 라운지', price: '₩390,000/박', tag: '에게해 스위트', img: ROOM_INTERIOR_POOL[13].thumb, fullImg: ROOM_INTERIOR_POOL[13].img },
+                    { name: '피라 절벽 프라이빗 빌라', price: '₩440,000/박', tag: '프라이빗 빌라', img: ROOM_INTERIOR_POOL[14].thumb, fullImg: ROOM_INTERIOR_POOL[14].img },
+                    { name: '오메로비글리 미니멀 스위트', price: '₩335,000/박', tag: '미니멀 스위트', img: ROOM_INTERIOR_POOL[15].thumb, fullImg: ROOM_INTERIOR_POOL[15].img }
+                ]
+            },
+            {
+                id: 'sydney',
+                name: '호주 시드니',
+                shortName: '시드니',
+                title: '하버사이드 모던 리빙 스위트',
+                desc: '시드니의 쾌적한 리빙룸과 호주 기념품을 둘러보세요.',
+                panoramaUrl: ROOM_INTERIOR_POOL[14].img,
+                souvenirs: [
+                    { id: 'syd-1', name: '시드니 오페라 쉘 오브제', icon: 'SHELL', kind: 'fan', rx: 0.34, ry: 0.66 },
+                    { id: 'syd-2', name: '유칼립투스 티 틴케이스', icon: 'TEA', kind: 'teatin', rx: 0.52, ry: 0.72 },
+                    { id: 'syd-3', name: '본다이 오션 머그컵', icon: 'MUG', kind: 'mug', rx: 0.68, ry: 0.64 }
+                ],
+                stays: [
+                    { name: '하버사이드 모던 리빙 스위트', price: '₩325,000/박', tag: '하버 스위트', img: ROOM_INTERIOR_POOL[14].thumb, fullImg: ROOM_INTERIOR_POOL[14].img },
+                    { name: '서리힐스 감성 타운하우스', price: '₩275,000/박', tag: '타운하우스', img: ROOM_INTERIOR_POOL[15].thumb, fullImg: ROOM_INTERIOR_POOL[15].img },
+                    { name: '본다이 코스트 우드 아파트', price: '₩295,000/박', tag: '코스트 아파트', img: ROOM_INTERIOR_POOL[16].thumb, fullImg: ROOM_INTERIOR_POOL[16].img }
+                ]
+            },
+            {
+                id: 'vancouver',
+                name: '캐나다 밴쿠버',
+                shortName: '밴쿠버',
+                title: '개스타운 포레스트 우드 로프트',
+                desc: '자연 친화적인 밴쿠버 숙소와 캐나다 로컬 기념품을 챙겨보세요.',
+                panoramaUrl: ROOM_INTERIOR_POOL[11].img,
+                souvenirs: [
+                    { id: 'van-1', name: '캐나다 메이플 시럽 보틀', icon: 'MAPLE', kind: 'perfume', rx: 0.34, ry: 0.67 },
+                    { id: 'van-2', name: '밴쿠버 시더 우드 머그', icon: 'WOOD', kind: 'mug', rx: 0.52, ry: 0.72 },
+                    { id: 'van-3', name: '단풍잎 패브릭 파우치', icon: 'LEAF', kind: 'tangerine', rx: 0.68, ry: 0.64 }
+                ],
+                stays: [
+                    { name: '개스타운 포레스트 우드 로프트', price: '₩260,000/박', tag: '우드 로프트', img: ROOM_INTERIOR_POOL[11].thumb, fullImg: ROOM_INTERIOR_POOL[11].img },
+                    { name: '예일타운 모던 파노라마 홈', price: '₩288,000/박', tag: '모던 홈', img: ROOM_INTERIOR_POOL[12].thumb, fullImg: ROOM_INTERIOR_POOL[12].img },
+                    { name: '키칠라노 코지 가든 스위트', price: '₩238,000/박', tag: '가든 스위트', img: ROOM_INTERIOR_POOL[13].thumb, fullImg: ROOM_INTERIOR_POOL[13].img }
+                ]
+            },
+            {
+                id: 'chiangmai',
+                name: '태국 치앙마이',
+                shortName: '치앙마이',
+                title: '님만해민 티크우드 빌라',
+                desc: '여유로운 치앙마이 티크우드 숙소와 태국 핸드메이드 기념품을 만나보세요.',
+                panoramaUrl: ROOM_INTERIOR_POOL[17].img,
+                souvenirs: [
+                    { id: 'cnx-1', name: '치앙마이 셀라돈 다기잔', icon: 'CELADON', kind: 'matcha', rx: 0.34, ry: 0.66 },
+                    { id: 'cnx-2', name: '핸드메이드 코끼리 오브제', icon: 'ELEPHANT', kind: 'dolhareubang', rx: 0.52, ry: 0.72 },
+                    { id: 'cnx-3', name: '레몬그라스 허브 보틀', icon: 'HERB', kind: 'perfume', rx: 0.68, ry: 0.64 }
+                ],
+                stays: [
+                    { name: '님만해민 티크우드 빌라', price: '₩165,000/박', tag: '티크우드 빌라', img: ROOM_INTERIOR_POOL[17].thumb, fullImg: ROOM_INTERIOR_POOL[17].img },
+                    { name: '올드타운 트로피컬 코티지', price: '₩142,000/박', tag: '트로피컬 코티지', img: ROOM_INTERIOR_POOL[0].thumb, fullImg: ROOM_INTERIOR_POOL[0].img },
+                    { name: '산티탐 모던 크래프트 홈', price: '₩158,000/박', tag: '크래프트 홈', img: ROOM_INTERIOR_POOL[1].thumb, fullImg: ROOM_INTERIOR_POOL[1].img }
+                ]
+            },
+            {
+                id: 'reykjavik',
+                name: '아이슬란드 레이캬비크',
+                shortName: '레이캬비크',
+                title: '노르딕 히터 포근한 캐빈',
+                desc: '북유럽 감성의 레이캬비크 숙소와 아이슬란드 기념품을 둘러보세요.',
+                panoramaUrl: ROOM_INTERIOR_POOL[8].img,
+                souvenirs: [
+                    { id: 'rek-1', name: '아이슬란드 울 니트 머그워머', icon: 'WOOL', kind: 'chocolate', rx: 0.34, ry: 0.67 },
+                    { id: 'rek-2', name: '오로라 글래스 오브제', icon: 'AURORA', kind: 'seabottle', rx: 0.52, ry: 0.72 },
+                    { id: 'rek-3', name: '북유럽 세라믹 티포트', icon: 'TEA', kind: 'matcha', rx: 0.68, ry: 0.64 }
+                ],
+                stays: [
+                    { name: '노르딕 히터 포근한 캐빈', price: '₩345,000/박', tag: '노르딕 캐빈', img: ROOM_INTERIOR_POOL[8].thumb, fullImg: ROOM_INTERIOR_POOL[8].img },
+                    { name: '하버뷰 미니멀 하우스', price: '₩315,000/박', tag: '미니멀 하우스', img: ROOM_INTERIOR_POOL[9].thumb, fullImg: ROOM_INTERIOR_POOL[9].img },
+                    { name: '라우가베구르 디자이너 스위트', price: '₩298,000/박', tag: '디자이너 스위트', img: ROOM_INTERIOR_POOL[10].thumb, fullImg: ROOM_INTERIOR_POOL[10].img }
+                ]
+            },
+            {
+                id: 'jeonju',
+                name: '대한민국 전주',
+                shortName: '전주',
+                title: '한옥마을 고즈넉한 마루 스테이',
+                desc: '전주의 아늑한 한옥 감성 숙소와 전주 전통 기념품을 챙겨보세요.',
+                panoramaUrl: ROOM_INTERIOR_POOL[5].img,
+                souvenirs: [
+                { id: 'jjn-1', name: '전주 한지 부채', icon: 'FAN', kind: 'fan', rx: 0.34, ry: 0.66 },
+                { id: 'jjn-2', name: '전통 청자 찻잔', icon: 'TEA', kind: 'matcha', rx: 0.52, ry: 0.72 },
+                { id: 'jjn-3', name: '수제 한과 디저트 함', icon: 'SWEETS', kind: 'macaron', rx: 0.68, ry: 0.64 }
+            ],
+            stays: [
+                { name: '한옥마을 고즈넉한 마루 스테이', price: '₩175,000/박', tag: '마루 스테이', img: ROOM_INTERIOR_POOL[5].thumb, fullImg: ROOM_INTERIOR_POOL[5].img },
+                { name: '객리단길 모던 한옥 하우스', price: '₩192,000/박', tag: '모던 한옥', img: ROOM_INTERIOR_POOL[6].thumb, fullImg: ROOM_INTERIOR_POOL[6].img },
+                { name: '팔복예술 감성 우드 스위트', price: '₩158,000/박', tag: '우드 스위트', img: ROOM_INTERIOR_POOL[7].thumb, fullImg: ROOM_INTERIOR_POOL[7].img }
+            ]
+        }
+    ];
+
+    function buildPredictionHintText(dest) {
+        const firstStay = (dest.stays && dest.stays[0]) ? dest.stays[0].tag : '감성 숙소';
+        const sampleItem = (dest.souvenirs && dest.souvenirs[0]) ? dest.souvenirs[0].name : '로컬 기념품';
+        return `힌트: ${firstStay} · 방 안 단서 '${sampleItem}'`;
+    }
+
+    function updateRandomPredictionWindow(revealCountry = false) {
+        const box = document.getElementById('random-predict-box');
+        const regionTag = document.getElementById('predict-region-tag');
+        const hintText = document.getElementById('predict-hint-text');
+        const toggleBtn = document.getElementById('btn-toggle-predict-answer');
+        if (!box || !regionTag || !hintText || !toggleBtn) return;
+
+        if (state.selectionMode !== 'random') {
+            box.classList.add('hidden');
+            return;
+        }
+
+        const dest = DESTINATIONS[state.destIndex] || DESTINATIONS[0];
+        const parts = dest.name.split(' ');
+        const continentOrCountry = parts.length > 1 ? parts[0] : '글로벌 스팟';
+
+        box.classList.remove('hidden');
+        regionTag.textContent = continentOrCountry;
+        if (revealCountry) {
+            hintText.textContent = `예상 국가: ${dest.name} (${dest.shortName})`;
+            toggleBtn.textContent = '힌트만 보기';
+        } else {
+            hintText.textContent = buildPredictionHintText(dest);
+            toggleBtn.textContent = '나라 보기';
+        }
+    }
+
+    const COUNTRY_SOUVENIR_TEMPLATES = {
+            korea: [
+                { suffix: '1', name: '전통 청자 다기잔', kind: 'matcha' },
+                { suffix: '2', name: '자개 문양 손거울', kind: 'fan' },
+                { suffix: '3', name: '로컬 감귤·다과 함', kind: 'tangerine' }
+            ],
+            japan: [
+                { suffix: '1', name: '마네키네코 복고양이', kind: 'manekineko' },
+                { suffix: '2', name: '전통 말차 찻잔', kind: 'matcha' },
+                { suffix: '3', name: '비단 접이식 부채', kind: 'fan' }
+            ],
+            spain: [
+                { suffix: '1', name: '가우디 모자이크 타일', kind: 'tile' },
+                { suffix: '2', name: '지중해 샹그리아 글라스', kind: 'sangria' },
+                { suffix: '3', name: '플라멩코 부채', kind: 'fan' }
+            ],
+            france: [
+                { suffix: '1', name: '파리지앵 마카롱 박스', kind: 'macaron' },
+                { suffix: '2', name: '에펠 미니 오브제', kind: 'eiffel' },
+                { suffix: '3', name: '플로럴 퍼퓸 보틀', kind: 'perfume' }
+            ],
+            uk: [
+                { suffix: '1', name: '런던 레드 버스 모형', kind: 'bus' },
+                { suffix: '2', name: '로열 티 틴케이스', kind: 'teatin' },
+                { suffix: '3', name: '클래식 세라믹 머그', kind: 'mug' }
+            ],
+            us: [
+                { suffix: '1', name: '트로피컬 우쿨렐레', kind: 'ukulele' },
+                { suffix: '2', name: '선셋 파인애플 글라스', kind: 'pineapple' },
+                { suffix: '3', name: '빈티지 옐로 캡 모형', kind: 'bus' }
+            ],
+            swiss: [
+                { suffix: '1', name: '알파인 카우벨 종', kind: 'cowbell' },
+                { suffix: '2', name: '밀크 초콜릿 바', kind: 'chocolate' },
+                { suffix: '3', name: '치즈 퐁듀 냄비', kind: 'fondue' }
+            ]
+        };
+
+        function inferCountrySouvenirs(regionName, customId) {
+            const lower = regionName.toLowerCase();
+            let tpl = null;
+            if (/한국|서울|부산|제주|강릉|경주|전주|여수|속초|광주|대구|인천/.test(regionName)) {
+                tpl = COUNTRY_SOUVENIR_TEMPLATES.korea;
+            } else if (/일본|도쿄|교토|오사카|후쿠오카|삿포로|tokyo|kyoto|osaka/.test(lower)) {
+                tpl = COUNTRY_SOUVENIR_TEMPLATES.japan;
+            } else if (/스페인|바르셀로나|마드리드|세비야|spain|barcelona/.test(lower)) {
+                tpl = COUNTRY_SOUVENIR_TEMPLATES.spain;
+            } else if (/프랑스|파리|니스|리옹|france|paris/.test(lower)) {
+                tpl = COUNTRY_SOUVENIR_TEMPLATES.france;
+            } else if (/영국|런던|에든버러|london|uk/.test(lower)) {
+                tpl = COUNTRY_SOUVENIR_TEMPLATES.uk;
+            } else if (/미국|뉴욕|하와이|la|로스앤젤레스|샌프란시스코|hawaii|new york/.test(lower)) {
+                tpl = COUNTRY_SOUVENIR_TEMPLATES.us;
+            } else if (/스위스|체르마트|취리히|인터라켄|swiss/.test(lower)) {
+                tpl = COUNTRY_SOUVENIR_TEMPLATES.swiss;
+            }
+
+            if (tpl) {
+                return [
+                    { id: `${customId}-1`, name: `${regionName} ${tpl[0].name}`, kind: tpl[0].kind, rx: 0.34, ry: 0.66 },
+                    { id: `${customId}-2`, name: `${regionName} ${tpl[1].name}`, kind: tpl[1].kind, rx: 0.52, ry: 0.72 },
+                    { id: `${customId}-3`, name: `${regionName} ${tpl[2].name}`, kind: tpl[2].kind, rx: 0.68, ry: 0.63 }
+                ];
+            }
+
+            return [
+                { id: `${customId}-1`, name: `${regionName} 전통 공예 도자기`, kind: 'matcha', rx: 0.34, ry: 0.66 },
+                { id: `${customId}-2`, name: `${regionName} 로컬 향초·오브제`, kind: 'perfume', rx: 0.52, ry: 0.72 },
+                { id: `${customId}-3`, name: `${regionName} 특산 디저트 박스`, kind: 'macaron', rx: 0.68, ry: 0.63 }
+            ];
+        }
+
+        const SEARCH_KEYWORDS = {
+            '바르셀로나': 'barcelona',
+            '스페인': 'barcelona',
+            '노을': 'barcelona',
+            '스위스': 'swiss',
+            '체르마트': 'swiss',
+            '설산': 'swiss',
+            '제주': 'jeju',
+            '바다': 'jeju',
+            '파리': 'paris',
+            '프랑스': 'paris',
+            '야경': 'paris',
+            '도쿄': 'tokyo',
+            '일본': 'tokyo',
+            '교토': 'kyoto',
+            '료칸': 'kyoto',
+            '런던': 'london',
+            '영국': 'london',
+            '뉴욕': 'newyork',
+            '미국': 'newyork',
+            '하와이': 'hawaii',
+            '휴양': 'hawaii',
+            '강릉': 'gangneung',
+            '부산': 'busan'
+        };
+
+        const state = {
+            step: 'enter',
+            selectionMode: 'random',
+            destIndex: 0,
+            lastRandomIndex: -1,
+            stayIndex: 0,
+            hits: 0,
+            maxHits: 5,
+            broken: false,
+            cameraActive: false,
+            layersBroken: 1,
+            panX: 0,
+            isDragging: false,
+            lastPointerX: 0,
+            collectedSouvenirs: [],
+            activeHotspots: [],
+            flyingSouvenirAnim: null,
+            selectedChips: ['#퇴근길한숨', '#6개월뒤엔여기'],
+            selectedTiming: '6개월 뒤 첫 연휴 전날',
+            selectedOpenDate: '2027.05',
+            savedStay: null
+        };
+
+        const stepEnter = document.getElementById('step-enter');
+        const stepAr = document.getElementById('step-ar');
+        const stepResult = document.getElementById('step-result');
+        const arCanvas = document.getElementById('ar-canvas');
+        const ctx = arCanvas ? arCanvas.getContext('2d') : null;
+        const videoEl = document.getElementById('camera-feed');
+        const loadedRooms = new Map();
+
+        let toastTimer = null;
+        function showToast(message) {
+            const banner = document.getElementById('toast-banner');
+            const textEl = document.getElementById('toast-text');
+            if (!banner || !textEl) return;
+            textEl.textContent = message;
+            banner.classList.remove('opacity-0');
+            banner.classList.add('opacity-100');
+            clearTimeout(toastTimer);
+            toastTimer = setTimeout(() => {
+                banner.classList.remove('opacity-100');
+                banner.classList.add('opacity-0');
+            }, 2600);
+        }
+
+        function createFallbackRoomCanvas(labelText = 'Airbnb Stay Interior') {
+            const fb = document.createElement('canvas');
+            fb.width = 1280;
+            fb.height = 720;
+            const fctx = fb.getContext('2d');
+            if (fctx) {
+                const grad = fctx.createLinearGradient(0, 0, 1280, 720);
+                grad.addColorStop(0, '#2a221e');
+                grad.addColorStop(0.5, '#42332b');
+                grad.addColorStop(1, '#1d1816');
+                fctx.fillStyle = grad;
+                fctx.fillRect(0, 0, 1280, 720);
+
+                // 아늑한 거실 소파 및 테이블 폴백 일러스트
+                fctx.fillStyle = '#6b5140';
+                fctx.beginPath();
+                fctx.roundRect(240, 405, 800, 165, 30);
+                fctx.fill();
+
+                fctx.fillStyle = '#473429';
+                fctx.beginPath();
+                fctx.roundRect(420, 520, 440, 95, 18);
+                fctx.fill();
+
+                fctx.fillStyle = 'rgba(255, 255, 255, 0.72)';
+                fctx.font = '700 28px "Noto Sans KR", sans-serif';
+                fctx.textAlign = 'center';
+                fctx.fillText(labelText, 640, 210);
+            }
+            return fb;
+        }
+
+        function ensureRoomImageLoaded(url, fallbackLabel = 'Airbnb Stay Interior') {
+            if (!url) {
+                const fb = createFallbackRoomCanvas(fallbackLabel);
+                loadedRooms.set(fallbackLabel, fb);
+                return fb;
+            }
+            if (loadedRooms.has(url)) {
+                return loadedRooms.get(url);
+            }
+            const fb = createFallbackRoomCanvas(fallbackLabel);
+            loadedRooms.set(url, fb);
+
+            const rImg = new Image();
+            rImg.crossOrigin = 'anonymous';
+            rImg.onload = () => {
+                if (rImg.naturalWidth > 0 && rImg.naturalHeight > 0) {
+                    loadedRooms.set(url, rImg);
+                }
+            };
+            rImg.onerror = () => {
+                loadedRooms.set(url, createFallbackRoomCanvas(fallbackLabel));
+            };
+            rImg.src = url;
+            return fb;
+        }
+
+        // 숙소 내부 사진 프리로드 (중복 없이 모든 숙소 이미지 로드)
+        const allRoomUrlsToLoad = new Set();
+        DESTINATIONS.forEach(dest => {
+            allRoomUrlsToLoad.add(dest.panoramaUrl);
+            (dest.stays || []).forEach(st => {
+                if (st.fullImg) allRoomUrlsToLoad.add(st.fullImg);
+                if (st.img) allRoomUrlsToLoad.add(st.img);
+            });
+        });
+
+        allRoomUrlsToLoad.forEach(url => {
+            ensureRoomImageLoaded(url, 'Airbnb Stay Interior');
+        });
+
+        // =========================================================
+        // 2. 캔버스 렌더링 루프 (숙소 내부 인테리어 전경)
+        // =========================================================
+        function resizeCanvas() {
+            if (!arCanvas) return;
+            const rect = arCanvas.parentElement.getBoundingClientRect();
+            const dpr = Math.min(window.devicePixelRatio || 1, 2);
+            arCanvas.width = Math.max(320, Math.floor(rect.width * dpr));
+            arCanvas.height = Math.max(480, Math.floor(rect.height * dpr));
+        }
+
+        function drawRoomInterior(dest, cw, ch) {
+            const currentStay = (dest.stays && dest.stays[state.stayIndex % dest.stays.length]) || null;
+            const preferredUrl = (currentStay && (currentStay.fullImg || currentStay.img)) || dest.panoramaUrl;
+            const roomSrc = ensureRoomImageLoaded(preferredUrl, `${dest.shortName} 숙소 인테리어`);
+
+            ctx.save();
+            const imgW = roomSrc.naturalWidth || roomSrc.width || 1440;
+            const imgH = roomSrc.naturalHeight || roomSrc.height || 810;
+            const imgRatio = imgW / Math.max(1, imgH);
+            const canvasRatio = cw / Math.max(1, ch);
+
+            let drawW = cw * 1.12;
+            let drawH = drawW / imgRatio;
+            if (drawH < ch * 1.12) {
+                drawH = ch * 1.12;
+                drawW = drawH * imgRatio;
+            }
+            if (imgRatio > canvasRatio) {
+                drawH = ch;
+                drawW = drawH * imgRatio;
+            }
+
+            const maxPan = Math.max(0, (drawW - cw) * 0.45);
+            const clampedPan = Math.max(-maxPan, Math.min(maxPan, state.panX));
+
+            const roomX = (cw - drawW) / 2 + clampedPan;
+            const roomY = (ch - drawH) / 2;
+
+            ctx.drawImage(roomSrc, roomX, roomY, drawW, drawH);
+            drawRoomSouvenirHotspots(dest, roomX, roomY, drawW, drawH);
+
+            ctx.restore();
+        }
+
+        // 국가/지역 맞춤형 물건 일러스트 드로잉 헬퍼
+        function drawSouvenirIllustration(item, cx, cy, scale = 1) {
+            ctx.save();
+            ctx.translate(cx, cy);
+            ctx.scale(scale, scale);
+
+            const kind = item.kind || '';
+            if (kind === 'manekineko') {
+                // 마네키네코 고양이
+                ctx.fillStyle = '#fffbeb';
+                ctx.strokeStyle = '#78350f';
+                ctx.lineWidth = 2.4;
+                ctx.beginPath();
+                ctx.roundRect(-16, -18, 32, 38, 14);
+                ctx.fill();
+                ctx.stroke();
+
+                // 들어올린 앞발
+                ctx.beginPath();
+                ctx.roundRect(10, -24, 10, 18, 5);
+                ctx.fill();
+                ctx.stroke();
+
+                // 붉은 목걸이 & 방울
+                ctx.fillStyle = '#ef4444';
+                ctx.fillRect(-14, 4, 28, 5);
+                ctx.fillStyle = '#facc15';
+                ctx.beginPath();
+                ctx.arc(0, 10, 4.5, 0, Math.PI * 2);
+                ctx.fill();
+            } else if (kind === 'fan') {
+                // 전통 접이식 부채
+                ctx.fillStyle = '#f43f5e';
+                ctx.strokeStyle = '#881337';
+                ctx.lineWidth = 2.2;
+                ctx.beginPath();
+                ctx.moveTo(0, 22);
+                ctx.arc(0, 22, 34, -Math.PI * 0.85, -Math.PI * 0.15);
+                ctx.closePath();
+                ctx.fill();
+                ctx.stroke();
+            } else if (kind === 'matcha' || kind === 'teatin') {
+                // 다기잔 / 티 틴케이스
+                ctx.fillStyle = '#10b981';
+                ctx.strokeStyle = '#064e3b';
+                ctx.lineWidth = 2.2;
+                ctx.beginPath();
+                ctx.roundRect(-18, -14, 36, 30, 8);
+                ctx.fill();
+                ctx.stroke();
+                ctx.fillStyle = '#a7f3d0';
+                ctx.fillRect(-14, -10, 28, 6);
+            } else if (kind === 'dolhareubang' || kind === 'statue') {
+                // 석상/오브제
+                ctx.fillStyle = '#64748b';
+                ctx.strokeStyle = '#1e293b';
+                ctx.lineWidth = 2.2;
+                ctx.beginPath();
+                ctx.roundRect(-14, -22, 28, 44, 10);
+                ctx.fill();
+                ctx.stroke();
+                ctx.fillStyle = '#cbd5e1';
+                ctx.beginPath();
+                ctx.arc(-5, -6, 3, 0, Math.PI * 2);
+                ctx.arc(5, -6, 3, 0, Math.PI * 2);
+                ctx.fill();
+            } else if (kind === 'tangerine' || kind === 'pineapple') {
+                // 감귤 / 파인애플
+                ctx.fillStyle = kind === 'pineapple' ? '#facc15' : '#f97316';
+                ctx.strokeStyle = '#9a3412';
+                ctx.lineWidth = 2.2;
+                ctx.beginPath();
+                ctx.ellipse(0, 4, 18, 16, 0, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.stroke();
+                ctx.fillStyle = '#16a34a';
+                ctx.beginPath();
+                ctx.ellipse(0, -14, 6, 9, 0, 0, Math.PI * 2);
+                ctx.fill();
+            } else if (kind === 'macaron' || kind === 'chocolate') {
+                // 디저트/초콜릿 박스
+                ctx.fillStyle = '#fb7185';
+                ctx.strokeStyle = '#831843';
+                ctx.lineWidth = 2.2;
+                ctx.beginPath();
+                ctx.roundRect(-20, -14, 40, 28, 8);
+                ctx.fill();
+                ctx.stroke();
+                ctx.fillStyle = '#fef08a';
+                ctx.fillRect(-20, -2, 40, 5);
+            } else if (kind === 'bus' || kind === 'eiffel' || kind === 'cowbell' || kind === 'fondue') {
+                // 버스/타워/종/냄비 실루엣
+                ctx.fillStyle = '#e11d48';
+                ctx.strokeStyle = '#4c0519';
+                ctx.lineWidth = 2.2;
+                ctx.beginPath();
+                ctx.roundRect(-18, -18, 36, 36, 8);
+                ctx.fill();
+                ctx.stroke();
+                ctx.fillStyle = '#fef3c7';
+                ctx.fillRect(-12, -10, 24, 11);
+            } else {
+                // 플로럴/바다 유리병/머그
+                ctx.fillStyle = '#38bdf8';
+                ctx.strokeStyle = '#0c4a6e';
+                ctx.lineWidth = 2.2;
+                ctx.beginPath();
+                ctx.roundRect(-14, -18, 28, 38, 10);
+                ctx.fill();
+                ctx.stroke();
+                ctx.fillStyle = '#bae6fd';
+                ctx.fillRect(-8, -24, 16, 7);
+            }
+            ctx.restore();
+        }
+
+        function drawRoomSouvenirHotspots(dest, roomX, roomY, drawW, drawH) {
+            const now = performance.now();
+            const pulse = 0.5 + 0.5 * Math.sin(now / 260);
+            state.activeHotspots = [];
+
+            dest.souvenirs.forEach(item => {
+                const alreadyCollected = state.collectedSouvenirs.some(s => s.id === item.id);
+                if (alreadyCollected) return;
+
+                const sx = roomX + drawW * item.rx;
+                const sy = roomY + drawH * item.ry;
+                const radius = Math.max(30, arCanvas.width * 0.048);
+
+                state.activeHotspots.push({ item, x: sx, y: sy, r: radius });
+
+                ctx.save();
+                ctx.beginPath();
+                ctx.arc(sx, sy, radius + pulse * 10, 0, Math.PI * 2);
+                ctx.fillStyle = `rgba(251, 191, 36, ${0.18 + pulse * 0.16})`;
+                ctx.fill();
+
+                ctx.beginPath();
+                ctx.arc(sx, sy, radius, 0, Math.PI * 2);
+                ctx.fillStyle = 'rgba(15, 23, 42, 0.72)';
+                ctx.fill();
+                ctx.lineWidth = 2.5;
+                ctx.strokeStyle = '#fbbf24';
+                ctx.stroke();
+
+                drawSouvenirIllustration(item, sx, sy, 0.85);
+
+                // 라벨 태그
+                ctx.font = '700 13px "Noto Sans KR", sans-serif';
+                const labelW = ctx.measureText(item.name).width + 20;
+                ctx.fillStyle = 'rgba(15, 23, 42, 0.85)';
+                ctx.beginPath();
+                ctx.roundRect(sx - labelW / 2, sy + radius + 6, labelW, 24, 12);
+                ctx.fill();
+
+                ctx.fillStyle = '#fef3c7';
+                ctx.textAlign = 'center';
+                ctx.textBaseline = 'middle';
+                ctx.fillText(item.name, sx, sy + radius + 18);
+                ctx.restore();
+            });
+
+            // 물건 클로즈업 & 손이 집어오는 애니메이션 렌더링
+            if (state.flyingSouvenirAnim) {
+                const anim = state.flyingSouvenirAnim;
+                const elapsed = now - anim.startTime;
+                const duration = 1150;
+                if (elapsed >= duration) {
+                    state.flyingSouvenirAnim = null;
+                } else {
+                    const t = elapsed / duration;
+                    const cw = arCanvas.width;
+                    const ch = arCanvas.height;
+                    const centerX = cw * 0.5;
+                    const centerY = ch * 0.44;
+                    const bagX = cw * 0.24;
+                    const bagY = ch * 0.84;
+
+                    let curX = centerX;
+                    let curY = centerY;
+                    let cardScale = 1;
+                    let cardAlpha = 1;
+
+                    if (t < 0.45) {
+                        const p = t / 0.45;
+                        const ease = 1 - Math.pow(1 - p, 3);
+                        curX = anim.startX + (centerX - anim.startX) * ease;
+                        curY = anim.startY + (centerY - anim.startY) * ease;
+                        cardScale = 0.7 + 0.45 * ease;
+                    } else {
+                        const p = (t - 0.45) / 0.55;
+                        const ease = p * p;
+                        curX = centerX + (bagX - centerX) * ease;
+                        curY = centerY + (bagY - centerY) * ease;
+                        cardScale = 1.15 * (1 - 0.75 * ease);
+                        cardAlpha = 1 - 0.85 * ease;
+                    }
+
+                    ctx.save();
+                    ctx.globalAlpha = Math.max(0, cardAlpha);
+                    ctx.translate(curX, curY);
+                    ctx.scale(cardScale, cardScale);
+
+                    // 클로즈업 카드 배경
+                    ctx.fillStyle = 'rgba(15, 23, 42, 0.92)';
+                    ctx.strokeStyle = '#fbbf24';
+                    ctx.lineWidth = 3;
+                    ctx.beginPath();
+                    ctx.roundRect(-95, -95, 190, 190, 28);
+                    ctx.fill();
+                    ctx.stroke();
+
+                    drawSouvenirIllustration(anim.item, 0, -14, 1.85);
+
+                    ctx.fillStyle = '#ffffff';
+                    ctx.font = '800 16px "Noto Sans KR", sans-serif';
+                    ctx.textAlign = 'center';
+                    ctx.fillText(anim.item.name, 0, 56);
+
+                    ctx.fillStyle = '#fbbf24';
+                    ctx.font = '600 12px "Noto Sans KR", sans-serif';
+                    ctx.fillText('여행 가방에 담는 중!', 0, 76);
+
+                    // 손 이모지 연출
+                    const handOffset = t < 0.45 ? (1 - t / 0.45) * 45 : 0;
+                    ctx.font = '46px sans-serif';
+                    ctx.fillText(t < 0.35 ? '🖐️' : '🤏', 42 + handOffset, -42 - handOffset);
+                    ctx.restore();
+                }
+            }
+        }
+
+        function drawWallBeforeBreak(cw, ch) {
+            ctx.save();
+            // 1. 실시간 카메라 영상이 활성화되어 있으면 가리는 막 없이 원본 그대로 선명하게 출력
+            if (state.cameraActive && videoEl && videoEl.readyState >= 2 && videoEl.videoWidth > 0) {
+                const vw = videoEl.videoWidth;
+                const vh = videoEl.videoHeight;
+                const vRatio = vw / vh;
+                let drawH = ch;
+                let drawW = drawH * vRatio;
+                if (drawW < cw) {
+                    drawW = cw;
+                    drawH = drawW / vRatio;
+                }
+                const vx = (cw - drawW) / 2;
+                const vy = (ch - drawH) / 2;
+                ctx.drawImage(videoEl, vx, vy, drawW, drawH);
+            } else {
+                // 카메라 미연결 시 밝은 화이트/웜그레이 벽 배경
+                const wallGrad = ctx.createLinearGradient(0, 0, cw, ch);
+                wallGrad.addColorStop(0, '#ffffff');
+                wallGrad.addColorStop(0.5, '#f8fafc');
+                wallGrad.addColorStop(1, '#f1f5f9');
+                ctx.fillStyle = wallGrad;
+                ctx.fillRect(0, 0, cw, ch);
+
+                // 카메라 미연결 상태에서만 은은한 화이트 타일 질감 그리드 표시
+                ctx.strokeStyle = 'rgba(15, 23, 42, 0.05)';
+                ctx.lineWidth = 1;
+                const step = 48;
+                for (let x = 0; x < cw; x += step) {
+                    ctx.beginPath();
+                    ctx.moveTo(x, 0);
+                    ctx.lineTo(x, ch);
+                    ctx.stroke();
+                }
+                for (let y = 0; y < ch; y += step) {
+                    ctx.beginPath();
+                    ctx.moveTo(0, y);
+                    ctx.lineTo(cw, y);
+                    ctx.stroke();
+                }
+            }
+
+            // 타격 횟수에 따른 벽 균열(Crack) 렌더링
+            if (state.hits > 0) {
+                const cx = cw * 0.5;
+                const cy = ch * 0.46;
+                const ratio = state.hits / state.maxHits;
+
+                ctx.strokeStyle = 'rgba(255, 56, 92, 0.85)';
+                ctx.lineWidth = 2.5 + ratio * 3.5;
+                const branches = 4 + state.hits * 3;
+                for (let i = 0; i < branches; i++) {
+                    const angle = (Math.PI * 2 * i) / branches + (i % 2) * 0.2;
+                    const len = (45 + ratio * 150) * (0.7 + (i % 3) * 0.25);
+                    ctx.beginPath();
+                    ctx.moveTo(cx, cy);
+                    const midX = cx + Math.cos(angle + 0.15) * (len * 0.5);
+                    const midY = cy + Math.sin(angle + 0.15) * (len * 0.5);
+                    ctx.lineTo(midX, midY);
+                    ctx.lineTo(cx + Math.cos(angle) * len, cy + Math.sin(angle) * len);
+                    ctx.stroke();
+                }
+            }
+            ctx.restore();
+        }
+        // 카메라 열기 & 모션 감지 (후면 -> 전면 -> 기본 비디오 순차 폴백)
+        let motionInterval = null;
+        let activeMediaStream = null;
+
+        function stopCameraStream() {
+            clearInterval(motionInterval);
+            state.cameraActive = false;
+            if (activeMediaStream) {
+                activeMediaStream.getTracks().forEach(track => track.stop());
+                activeMediaStream = null;
+            }
+        }
+
+        async function startCameraMotionDetection() {
+            const statusLabel = document.getElementById('ar-status-label');
+            if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+                state.cameraActive = false;
+                if (statusLabel) statusLabel.textContent = '터치 벽 두드리기 모드';
+                showToast('📷 카메라 미지원 환경입니다. 화면을 터치해 벽을 부숴보세요!');
+                return;
+            }
+
+            stopCameraStream();
+
+            const constraintsList = [
+                { video: { facingMode: { ideal: 'environment' }, width: { ideal: 1280 }, height: { ideal: 720 } }, audio: false },
+                { video: { facingMode: 'user' }, audio: false },
+                { video: true, audio: false }
+            ];
+
+            let stream = null;
+            for (const constraints of constraintsList) {
+                try {
+                    stream = await navigator.mediaDevices.getUserMedia(constraints);
+                    if (stream) break;
+                } catch (_) {
+                    // 다음 카메라 제약 조건으로 재시도
+                }
+            }
+
+            if (!stream) {
+                state.cameraActive = false;
+                if (statusLabel) statusLabel.textContent = '터치 벽 두드리기 모드';
+                showToast('📷 브라우저 카메라 권한을 허용하면 AR 카메라가 열립니다.');
+                return;
+            }
+
+            activeMediaStream = stream;
+            if (videoEl) {
+                videoEl.srcObject = stream;
+                try {
+                    await videoEl.play();
+                } catch (_) {}
+            }
+
+            state.cameraActive = true;
+            if (statusLabel) statusLabel.textContent = 'AR 카메라 활성 · 주먹을 휘두르거나 터치하세요';
+            showToast('📷 카메라가 열렸습니다! 주먹을 휘두르거나 손가락으로 화면을 터치하세요.');
+
+            const mCanvas = document.createElement('canvas');
+            mCanvas.width = 64;
+            mCanvas.height = 48;
+            const mCtx = mCanvas.getContext('2d', { willReadFrequently: true });
+            let prevFrame = null;
+            let lastTrigger = 0;
+
+            motionInterval = setInterval(() => {
+                if (state.step !== 'ar' || state.broken || !videoEl || videoEl.readyState < 2) return;
+                mCtx.drawImage(videoEl, 0, 0, 64, 48);
+                const curr = mCtx.getImageData(0, 0, 64, 48).data;
+                if (prevFrame) {
+                    let changed = 0;
+                    const total = 64 * 48;
+                    for (let i = 0; i < curr.length; i += 4) {
+                        const diff = Math.abs(curr[i] - prevFrame[i]) + Math.abs(curr[i + 1] - prevFrame[i + 1]) + Math.abs(curr[i + 2] - prevFrame[i + 2]);
+                        if (diff > 95) changed++;
+                    }
+                    const now = Date.now();
+                    // 미세한 흔들림을 걸러내고 실제로 주먹을 강하게 휘둘렀을 때만 인식
+                    if (changed / total > 0.28 && now - lastTrigger > 650) {
+                        lastTrigger = now;
+                        registerPunchHit();
+                    }
+                }
+                prevFrame = new Uint8ClampedArray(curr);
+            }, 120);
+        }
+
+        function renderLoop() {
+            if (ctx && arCanvas) {
+                const cw = arCanvas.width;
+                const ch = arCanvas.height;
+                ctx.clearRect(0, 0, cw, ch);
+                if (!state.broken) {
+                    drawWallBeforeBreak(cw, ch);
+                } else {
+                    const dest = DESTINATIONS[state.destIndex] || DESTINATIONS[0];
+                    drawRoomInterior(dest, cw, ch);
+                }
+            }
+            requestAnimationFrame(renderLoop);
+        }
+
+        // =========================================================
+        // 3. 인터랙션 및 단계 전환 로직
+        // =========================================================
+        function updateSouvenirInventoryUI() {
+            const countEl = document.getElementById('souvenir-count');
+            const listEl = document.getElementById('souvenir-list-label');
+            if (countEl) countEl.textContent = String(state.collectedSouvenirs.length);
+            if (listEl) {
+                listEl.textContent = state.collectedSouvenirs.length > 0
+                    ? state.collectedSouvenirs.map(s => `${s.icon} ${s.name}`).join(' · ')
+                    : '화면 속 반짝이는 물건을 눌러 가져오세요';
+            }
+        }
+
+        function collectSouvenirItem(item, startX, startY) {
+            if (!item || state.collectedSouvenirs.some(s => s.id === item.id)) return;
+            state.collectedSouvenirs.push(item);
+            state.flyingSouvenirAnim = {
+                item,
+                startX: startX || arCanvas.width * 0.5,
+                startY: startY || arCanvas.height * 0.5,
+                startTime: performance.now()
+            };
+            updateSouvenirInventoryUI();
+            showToast(`🧳 '${item.name}' 아이템을 여행 가방에 챙겼어요!`);
+        }
+
+        function registerPunchHit() {
+            if (state.broken) return;
+            state.hits = Math.min(state.maxHits, state.hits + 1);
+            const hitEl = document.getElementById('hit-counter');
+            if (hitEl) hitEl.textContent = String(state.hits);
+
+            const frame = document.getElementById('app-frame');
+            if (frame) {
+                frame.classList.remove('shake-active');
+                void frame.offsetWidth;
+                frame.classList.add('shake-active');
+            }
+
+            const ring = document.getElementById('reticle-progress-ring');
+            if (ring) {
+                ring.style.transform = 'scale(1.12)';
+                setTimeout(() => { ring.style.transform = 'scale(1)'; }, 140);
+            }
+
+            if (state.hits >= state.maxHits) {
+                completeWallBreak();
+            } else {
+                showToast(`벽에 균열이 생겼습니다! (${state.hits}/${state.maxHits})`);
+            }
+        }
+
+        function completeWallBreak() {
+            state.broken = true;
+            const dest = DESTINATIONS[state.destIndex] || DESTINATIONS[0];
+            const staysList = dest.stays && dest.stays.length > 0 ? dest.stays : [];
+            const currentStay = staysList.length > 0 ? staysList[state.stayIndex % staysList.length] : null;
+
+            document.getElementById('ar-target-overlay')?.classList.add('hidden');
+            document.getElementById('ar-escape-overlay')?.classList.remove('hidden');
+
+            const statusLabel = document.getElementById('ar-status-label');
+            if (statusLabel) statusLabel.textContent = `${dest.name} · 숙소 ${state.stayIndex + 1}/${Math.max(1, staysList.length)}`;
+
+            const layerBadge = document.getElementById('layer-badge');
+            if (layerBadge) layerBadge.textContent = `${dest.shortName} · STAY ${state.stayIndex + 1}`;
+
+            const titleEl = document.getElementById('escape-dest-title');
+            const descEl = document.getElementById('escape-dest-desc');
+            if (titleEl) {
+                titleEl.textContent = currentStay ? `${dest.shortName} · ${currentStay.name}` : dest.title;
+            }
+            if (descEl) {
+                descEl.textContent = currentStay
+                    ? `[${dest.name}] ${currentStay.tag} 무드의 숙소입니다. 방 안 기념품을 챙겨보세요.`
+                    : dest.desc;
+            }
+
+            updateSouvenirInventoryUI();
+            showToast(`✨ [${dest.name}] ${currentStay ? currentStay.name : dest.title} 공간이 열렸습니다!`);
+        }
+
+        function switchStep(nextStep) {
+            state.step = nextStep;
+            stepEnter?.classList.toggle('hidden', nextStep !== 'enter');
+            stepAr?.classList.toggle('hidden', nextStep !== 'ar');
+            stepResult?.classList.toggle('hidden', nextStep !== 'result');
+
+            if (nextStep === 'ar') {
+                resizeCanvas();
+            } else if (nextStep === 'result') {
+                populateResultScreen();
+            }
+        }
+
+        // =========================================================
+        // 4. 타임캡슐 엽서 & 위시리스트 화면 렌더링
+        // =========================================================
+        function updatePostcardPreview() {
+            const dest = DESTINATIONS[state.destIndex] || DESTINATIONS[0];
+            const chipsText = state.selectedChips.length > 0 ? state.selectedChips.join(' ') : '#퇴근길한숨 #6개월뒤엔여기';
+            const msgEl = document.getElementById('postcard-message-preview');
+            if (msgEl) {
+                msgEl.textContent = `“${chipsText} 끝내고 ${state.selectedTiming}, ${dest.shortName} 숙소에서 쉴 나에게”`;
+            }
+
+            const dateBadge = document.getElementById('postcard-open-date-badge');
+            if (dateBadge) {
+                dateBadge.textContent = `${state.selectedOpenDate} 개봉 예정`;
+            }
+
+            const souvenirPreview = document.getElementById('postcard-souvenir-preview');
+            if (souvenirPreview) {
+                if (state.collectedSouvenirs.length > 0) {
+                    souvenirPreview.textContent = `🧳 함께 챙긴 물건: ${state.collectedSouvenirs.map(s => s.name).join(', ')}`;
+                    souvenirPreview.classList.remove('hidden');
+                } else {
+                    souvenirPreview.textContent = '';
+                    souvenirPreview.classList.add('hidden');
+                }
+            }
+        }
+
+        function pickRandomDestinationIndex() {
+            if (DESTINATIONS.length <= 1) return 0;
+            let nextIdx = Math.floor(Math.random() * DESTINATIONS.length);
+            if (nextIdx === state.lastRandomIndex || nextIdx === state.destIndex) {
+                nextIdx = (nextIdx + 1 + Math.floor(Math.random() * (DESTINATIONS.length - 1))) % DESTINATIONS.length;
+            }
+            state.lastRandomIndex = nextIdx;
+            return nextIdx;
+        }
+
+        function applyDestinationSearch(silent = false) {
+            const raw = (document.getElementById('dest-search-input')?.value || '').trim();
+            if (!raw) {
+                if (!silent) showToast('여행지 또는 분위기 키워드를 입력해 주세요.');
+                return false;
+            }
+            state.selectionMode = 'search';
+
+            let matchedId = null;
+            for (const [kw, id] of Object.entries(SEARCH_KEYWORDS)) {
+                if (raw.includes(kw)) {
+                    matchedId = id;
+                    break;
+                }
+            }
+
+            let foundIdx = matchedId ? DESTINATIONS.findIndex(d => d.id === matchedId) : -1;
+            if (foundIdx < 0) {
+                foundIdx = DESTINATIONS.findIndex(d => d.name.includes(raw) || d.shortName.includes(raw));
+            }
+
+            if (foundIdx >= 0) {
+                state.destIndex = foundIdx;
+                state.stayIndex = 0;
+                DESTINATIONS[foundIdx].stays.forEach(st => {
+                    if (st.img) ensureRoomImageLoaded(st.img, `${DESTINATIONS[foundIdx].shortName} 숙소`);
+                    if (st.fullImg) ensureRoomImageLoaded(st.fullImg, `${DESTINATIONS[foundIdx].shortName} 숙소`);
+                });
+                if (!silent) showToast(`📍 '${DESTINATIONS[foundIdx].name}' 지역 숙소로 설정되었습니다!`);
+                return true;
+            }
+
+            // 기본 목록 외의 도시를 검색한 경우 해당 지역 전용 숙소 3채를 중복 없는 이미지로 생성
+            const roomA = takeUniqueRoomPhoto(0);
+            const roomB = takeUniqueRoomPhoto(1);
+            const roomC = takeUniqueRoomPhoto(2);
+            const customId = `custom-${Date.now()}`;
+            const countrySouvenirs = inferCountrySouvenirs(raw, customId);
+
+            const customDest = {
+                id: customId,
+                name: raw,
+                shortName: raw,
+                title: `${raw} ${roomA.vibe}`,
+                desc: `${raw} 지역 전용 숙소 인테리어(${roomA.vibe})와 ${raw} 기념품을 둘러보세요.`,
+                panoramaUrl: roomA.img,
+                souvenirs: countrySouvenirs,
+                stays: [
+                    { name: `${raw} ${roomA.vibe}`, price: '₩245,000/박', tag: `${raw} · ${roomA.vibe}`, vibe: roomA.vibe, img: roomA.thumb, fullImg: roomA.img },
+                    { name: `${raw} ${roomB.vibe}`, price: '₩210,000/박', tag: `${raw} · ${roomB.vibe}`, vibe: roomB.vibe, img: roomB.thumb, fullImg: roomB.img },
+                    { name: `${raw} ${roomC.vibe}`, price: '₩275,000/박', tag: `${raw} · ${roomC.vibe}`, vibe: roomC.vibe, img: roomC.thumb, fullImg: roomC.img }
+                ]
+            };
+            // 각 숙소마다 서로 다른 이미지를 개별 캐시 키로 등록해 중복 방지
+            [
+                { key: customId, url: roomA.img },
+                { key: roomA.thumb, url: roomA.img },
+                { key: roomB.thumb, url: roomB.img },
+                { key: roomC.thumb, url: roomC.img }
+            ].forEach(entry => {
+                ensureRoomImageLoaded(entry.url, `${raw} 숙소 인테리어`);
+            });
+
+            DESTINATIONS.push(customDest);
+            state.destIndex = DESTINATIONS.length - 1;
+            state.stayIndex = 0;
+            if (!silent) showToast(`📍 '${raw}' 지역 전용 숙소로 설정되었습니다!`);
+            return true;
+        }
+
+        function populateResultScreen() {
+            const dest = DESTINATIONS[state.destIndex] || DESTINATIONS[0];
+            const destImg = document.getElementById('result-dest-img');
+            const destName = document.getElementById('result-dest-name');
+            const stayTag = document.getElementById('postcard-stay-tag');
+
+            if (destImg) {
+                const fallbackDataUrl = createFallbackRoomCanvas(`${dest.shortName} 숙소`).toDataURL('image/png');
+                destImg.onerror = () => {
+                    destImg.onerror = null;
+                    destImg.src = fallbackDataUrl;
+                };
+                destImg.src = dest.panoramaUrl || fallbackDataUrl;
+            }
+            if (destName) destName.textContent = dest.name;
+            if (stayTag) stayTag.textContent = state.savedStay ? `♥ ${state.savedStay.name}` : '선물 숙소 선택 대기중';
+
+            updatePostcardPreview();
+
+            const container = document.getElementById('stay-cards-container');
+            if (!container) return;
+            container.innerHTML = '';
+
+            dest.stays.forEach((stay) => {
+                const isSaved = state.savedStay && state.savedStay.name === stay.name;
+                const fallbackStayUrl = createFallbackRoomCanvas(`${dest.shortName} · ${stay.tag || '숙소'}`).toDataURL('image/png');
+                const safeImgSrc = stay.img || stay.fullImg || dest.panoramaUrl || fallbackStayUrl;
+                const card = document.createElement('div');
+                card.className = 'min-w-[215px] rounded-2xl overflow-hidden bg-slate-50 border border-slate-200 flex flex-col justify-between shrink-0 shadow-sm';
+                card.innerHTML = `
+                    <div class="relative h-28 w-full bg-slate-100">
+                        <img src="${safeImgSrc}" alt="${stay.name}" class="w-full h-full object-cover"
+                             onerror="this.onerror=null;this.src='${fallbackStayUrl}'">
+                        <span class="absolute top-2 left-2 px-2 py-0.5 rounded-md bg-white/90 text-[10px] font-bold text-slate-800 shadow-sm">${stay.tag}</span>
+                        <button type="button" class="stay-heart-btn absolute top-2 right-2 w-8 h-8 rounded-full ${isSaved ? 'bg-[#FF385C] text-white' : 'bg-white/90 text-slate-700'} flex items-center justify-center shadow active:scale-90 transition">
+                            <i class="fa-solid fa-heart text-xs"></i>
+                        </button>
+                    </div>
+                    <div class="p-3 space-y-1 bg-white">
+                        <p class="text-xs font-bold text-slate-900 line-clamp-1">${stay.name}</p>
+                        <p class="text-[11px] font-extrabold text-[#FF385C]">${stay.price}</p>
+                    </div>
+                `;
+
+                const heartBtn = card.querySelector('.stay-heart-btn');
+                heartBtn?.addEventListener('click', () => {
+                    state.savedStay = stay;
+                    const box = document.getElementById('postcard-preview-box');
+                    if (box) {
+                        box.classList.remove('fly-into-capsule');
+                        void box.offsetWidth;
+                        box.classList.add('fly-into-capsule');
+                        setTimeout(() => box.classList.remove('fly-into-capsule'), 700);
+                    }
+                    const folderTitle = document.getElementById('wishlist-folder-title');
+                    if (folderTitle) {
+                        folderTitle.textContent = `💌 [${state.selectedOpenDate} 개봉 예정] 나의 ${dest.shortName} 도피처`;
+                    }
+                    document.getElementById('wishlist-sealed-panel')?.classList.remove('hidden');
+                    showToast(`♥ '${stay.name}' 숙소가 타임캡슐 위시리스트에 봉인되었습니다!`);
+                    populateResultScreen();
+                });
+
+                container.appendChild(card);
+            });
+        }
+
+        document.getElementById('btn-mode-random')?.addEventListener('click', () => {
+            state.selectionMode = 'random';
+            state.destIndex = pickRandomDestinationIndex();
+            state.stayIndex = 0;
+            const searchInput = document.getElementById('dest-search-input');
+            if (searchInput) searchInput.value = '';
+            document.getElementById('dest-search-panel')?.classList.add('hidden');
+            document.getElementById('btn-mode-random')?.classList.add('border-[#FF385C]', 'bg-rose-50', 'text-[#FF385C]');
+            document.getElementById('btn-mode-search')?.classList.remove('border-[#FF385C]', 'bg-rose-50', 'text-[#FF385C]');
+            updateRandomPredictionWindow(false);
+        });
+
+        document.getElementById('btn-toggle-predict-answer')?.addEventListener('click', () => {
+            const btn = document.getElementById('btn-toggle-predict-answer');
+            const currentlyRevealed = btn && btn.textContent.trim() === '힌트만 보기';
+            updateRandomPredictionWindow(!currentlyRevealed);
+        });
+
+        document.getElementById('btn-mode-search')?.addEventListener('click', () => {
+            state.selectionMode = 'search';
+            document.getElementById('random-predict-box')?.classList.add('hidden');
+            const panel = document.getElementById('dest-search-panel');
+            panel?.classList.remove('hidden');
+            document.getElementById('btn-mode-search')?.classList.add('border-[#FF385C]', 'bg-rose-50', 'text-[#FF385C]');
+            document.getElementById('btn-mode-random')?.classList.remove('border-[#FF385C]', 'bg-rose-50', 'text-[#FF385C]');
+            document.getElementById('dest-search-input')?.focus();
+        });
+
+        document.getElementById('btn-apply-search')?.addEventListener('click', () => {
+            applyDestinationSearch(false);
+        });
+
+        document.getElementById('dest-search-input')?.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter') {
+                e.preventDefault();
+                applyDestinationSearch(false);
+            }
+        });
+
+        document.getElementById('btn-start-ar')?.addEventListener('click', () => {
+            const searchInputVal = (document.getElementById('dest-search-input')?.value || '').trim();
+
+            if (searchInputVal) {
+                applyDestinationSearch(true);
+            } else if (state.selectionMode === 'random') {
+                // 이미 랜덤 버튼으로 뽑힌 여행지가 있으면 유지하고, 아직 안 뽑았을 때만 추첨
+                if (typeof state.destIndex !== 'number' || state.destIndex < 0 || state.destIndex >= DESTINATIONS.length) {
+                    state.destIndex = pickRandomDestinationIndex();
+                }
+            }
+            state.hits = 0;
+            state.broken = false;
+            state.stayIndex = 0;
+            state.layersBroken = 1;
+            state.panX = 0;
+            state.collectedSouvenirs = [];
+            state.savedStay = null;
+
+            const hitEl = document.getElementById('hit-counter');
+            if (hitEl) hitEl.textContent = '0';
+            document.getElementById('ar-target-overlay')?.classList.remove('hidden');
+            document.getElementById('ar-escape-overlay')?.classList.add('hidden');
+            document.getElementById('wishlist-sealed-panel')?.classList.add('hidden');
+
+            switchStep('ar');
+            startCameraMotionDetection();
+        });
+
+        document.getElementById('btn-back-home')?.addEventListener('click', () => {
+            stopCameraStream();
+            switchStep('enter');
+        });
+
+        document.getElementById('btn-toggle-clean-view')?.addEventListener('click', () => {
+            document.getElementById('escape-top-panel')?.classList.add('hidden');
+            document.getElementById('ar-escape-overlay')?.classList.add('hidden');
+            document.getElementById('clean-view-restore-bar')?.classList.remove('hidden');
+        });
+
+        document.getElementById('btn-restore-ui')?.addEventListener('click', () => {
+            document.getElementById('escape-top-panel')?.classList.remove('hidden');
+            if (state.broken) {
+                document.getElementById('ar-escape-overlay')?.classList.remove('hidden');
+            }
+            document.getElementById('clean-view-restore-bar')?.classList.add('hidden');
+        });
+
+        document.getElementById('btn-grab-random-item')?.addEventListener('click', () => {
+            const dest = DESTINATIONS[state.destIndex] || DESTINATIONS[0];
+            const remaining = dest.souvenirs.filter(item => !state.collectedSouvenirs.some(s => s.id === item.id));
+            if (remaining.length === 0) {
+                showToast('🎉 이 방의 모든 기념품을 이미 챙겼습니다!');
+                return;
+            }
+            collectSouvenirItem(remaining[0], arCanvas.width * 0.5, arCanvas.height * 0.55);
+        });
+
+        document.getElementById('btn-break-next-layer')?.addEventListener('click', () => {
+            const dest = DESTINATIONS[state.destIndex] || DESTINATIONS[0];
+            const totalStays = (dest.stays && dest.stays.length) || 1;
+            state.stayIndex = (state.stayIndex + 1) % totalStays;
+            state.layersBroken += 1;
+            state.panX = 0;
+            state.collectedSouvenirs = [];
+            state.savedStay = null;
+            completeWallBreak();
+        });
+
+        document.getElementById('btn-claim-reward')?.addEventListener('click', () => {
+            switchStep('result');
+        });
+
+        document.getElementById('btn-result-back-ar')?.addEventListener('click', () => {
+            switchStep('ar');
+        });
+
+        // 엽서 칩 & 도착 시점 이벤트
+        document.querySelectorAll('.mood-chip').forEach(chip => {
+            chip.addEventListener('click', () => {
+                const val = chip.getAttribute('data-chip');
+                if (!val) return;
+                if (state.selectedChips.includes(val)) {
+                    state.selectedChips = state.selectedChips.filter(c => c !== val);
+                    chip.classList.remove('active', 'bg-[#FF385C]', 'border-[#FF385C]', 'text-white');
+                    chip.classList.add('bg-slate-100', 'border-slate-200', 'text-slate-700');
+                } else {
+                    state.selectedChips.push(val);
+                    chip.classList.add('active', 'bg-[#FF385C]', 'border-[#FF385C]', 'text-white');
+                    chip.classList.remove('bg-slate-100', 'border-slate-200', 'text-slate-700');
+                }
+                updatePostcardPreview();
+            });
+        });
+
+        document.querySelectorAll('.timing-btn').forEach(btn => {
+            btn.addEventListener('click', () => {
+                document.querySelectorAll('.timing-btn').forEach(b => {
+                    b.classList.remove('active', 'bg-rose-50', 'border-[#FF385C]', 'font-bold', 'text-[#FF385C]');
+                    b.classList.add('bg-slate-50', 'border-slate-200', 'font-semibold', 'text-slate-700');
+                });
+                btn.classList.add('active', 'bg-rose-50', 'border-[#FF385C]', 'font-bold', 'text-[#FF385C]');
+                btn.classList.remove('bg-slate-50', 'border-slate-200', 'font-semibold', 'text-slate-700');
+
+                state.selectedTiming = btn.getAttribute('data-timing') || '6개월 뒤 첫 연휴 전날';
+                state.selectedOpenDate = btn.getAttribute('data-date') || '2027.05';
+                updatePostcardPreview();
+            });
+        });
+
+        // STEP 4 미래 개봉 모달
+        document.getElementById('btn-preview-future-open')?.addEventListener('click', () => {
+            const dest = DESTINATIONS[state.destIndex] || DESTINATIONS[0];
+            const stay = state.savedStay || dest.stays[0];
+            const headline = document.getElementById('modal-open-headline');
+            const quote = document.getElementById('modal-open-quote');
+            const stayName = document.getElementById('modal-stay-name');
+            const stayPrice = document.getElementById('modal-stay-price');
+
+            if (headline) headline.textContent = `${state.selectedOpenDate}, 과거의 나로부터 여행 엽서가 도착했어요!`;
+            if (quote) quote.textContent = document.getElementById('postcard-message-preview')?.textContent || '';
+            if (stayName) stayName.textContent = stay.name;
+            if (stayPrice) stayPrice.textContent = stay.price;
+
+            document.getElementById('future-modal')?.classList.remove('hidden');
+        });
+
+        document.getElementById('btn-close-future-modal')?.addEventListener('click', () => {
+            document.getElementById('future-modal')?.classList.add('hidden');
+        });
+
+        function copyTextFallback(text) {
+            const tempArea = document.createElement('textarea');
+            tempArea.value = text;
+            tempArea.setAttribute('readonly', '');
+            tempArea.style.position = 'fixed';
+            tempArea.style.top = '0';
+            tempArea.style.left = '0';
+            tempArea.style.opacity = '0';
+            document.body.appendChild(tempArea);
+            tempArea.focus();
+            tempArea.select();
+            tempArea.setSelectionRange(0, text.length);
+            let ok = false;
+            try {
+                ok = document.execCommand('copy');
+            } catch (_) {
+                ok = false;
+            }
+            document.body.removeChild(tempArea);
+            return ok;
+        }
+
+        function shareTimeCapsuleWithFriend() {
+            const dest = DESTINATIONS[state.destIndex] || DESTINATIONS[0];
+            const stay = state.savedStay || (dest.stays && dest.stays[0]) || { name: dest.title, price: '' };
+            const msg = document.getElementById('postcard-message-preview')?.textContent?.trim() || '';
+            const souvenirs = state.collectedSouvenirs.length > 0
+                ? `\n🧳 챙긴 기념품: ${state.collectedSouvenirs.map(s => s.name).join(', ')}`
+                : '';
+
+            const shareText = `[Airbnb 타임캡슐 초대장]\n📍 여행지: ${dest.name}\n🏠 찜한 숙소: ${stay.name} (${stay.price})\n💌 엽서 메시지: ${msg}${souvenirs}\n\n우리 ${state.selectedOpenDate}에 여기 같이 갈래? 👉 https://airbnb.com/timecapsule`;
+
+            copyTextFallback(shareText);
+
+            const labelEl = document.getElementById('btn-share-capsule-label');
+            if (labelEl) {
+                labelEl.textContent = '복사 완료! 다시 공유';
+            }
+
+            const shareTextarea = document.getElementById('share-invite-textarea');
+            if (shareTextarea) {
+                shareTextarea.value = shareText;
+            }
+            document.getElementById('future-modal')?.classList.add('hidden');
+            document.getElementById('share-preview-modal')?.classList.remove('hidden');
+            showToast('💌 친구에게 보낼 타임캡슐 초대장이 복사되었어요!');
+        }
+
+        document.getElementById('btn-share-capsule')?.addEventListener('click', (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            shareTimeCapsuleWithFriend();
+        });
+        document.getElementById('btn-invite-friend')?.addEventListener('click', (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            shareTimeCapsuleWithFriend();
+        });
+        document.getElementById('btn-close-share-modal')?.addEventListener('click', () => {
+            document.getElementById('share-preview-modal')?.classList.add('hidden');
+        });
+        document.getElementById('btn-copy-invite-again')?.addEventListener('click', () => {
+            const txt = document.getElementById('share-invite-textarea')?.value || '';
+            copyTextFallback(txt);
+            showToast('📋 초대 문구가 다시 복사되었습니다!');
+        });
+
+        document.getElementById('btn-book-now')?.addEventListener('click', () => {
+            document.getElementById('future-modal')?.classList.add('hidden');
+            showToast('📅 에어비앤비 숙소 예약 캘린더와 연동되었습니다!');
+        });
+
+        // 캔버스 포인터 인터랙션 (벽 타격 / 시점 드래그 / 방 안 물건 터치)
+        if (arCanvas) {
+            let pointerDownX = 0;
+            let pointerDownY = 0;
+            let movedDistance = 0;
+
+            arCanvas.addEventListener('pointerdown', (e) => {
+                state.isDragging = true;
+                state.lastPointerX = e.clientX;
+                pointerDownX = e.clientX;
+                pointerDownY = e.clientY;
+                movedDistance = 0;
+            });
+
+            arCanvas.addEventListener('pointermove', (e) => {
+                if (!state.isDragging) return;
+                const dx = e.clientX - state.lastPointerX;
+                movedDistance += Math.abs(dx) + Math.abs(e.clientY - pointerDownY);
+                state.lastPointerX = e.clientX;
+                if (state.broken) {
+                    state.panX += dx * 1.4;
+                }
+            });
+
+            arCanvas.addEventListener('pointerup', (e) => {
+                state.isDragging = false;
+                if (movedDistance < 12) {
+                    if (!state.broken) {
+                        registerPunchHit();
+                    } else {
+                        const rect = arCanvas.getBoundingClientRect();
+                        const dpr = arCanvas.width / Math.max(1, rect.width);
+                        const tapX = (e.clientX - rect.left) * dpr;
+                        const tapY = (e.clientY - rect.top) * dpr;
+
+                        for (const spot of state.activeHotspots) {
+                            const dist = Math.hypot(tapX - spot.x, tapY - spot.y);
+                            if (dist <= spot.r * 1.35) {
+                                collectSouvenirItem(spot.item, spot.x, spot.y);
+                                break;
+                            }
+                        }
+                    }
+                }
+            });
+        }
+
+        window.addEventListener('resize', resizeCanvas);
+        window.addEventListener('load', () => {
+            resizeCanvas();
+            renderLoop();
+        });
+    </script>
+</body>
+</html>
