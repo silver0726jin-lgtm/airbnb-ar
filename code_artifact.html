@@ -1,0 +1,1930 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Airbnb AR · 벽 너머의 숙소 & 여행 타임캡슐</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <style>
+        * {
+            font-family: 'Noto Sans KR', -apple-system, BlinkMacSystemFont, sans-serif;
+            -webkit-tap-highlight-color: transparent;
+            user-select: none;
+        }
+        body {
+            background-color: #f8fafc;
+            color: #0f172a;
+            overflow: hidden;
+        }
+        .airbnb-gradient {
+            background: linear-gradient(135deg, #FF385C 0%, #E61E4D 50%, #D70466 100%);
+        }
+        /* 타격 시 화면 흔들림 */
+        @keyframes screenShake {
+            0%, 100% { transform: translate(0, 0) rotate(0deg); }
+            20% { transform: translate(-8px, 6px) rotate(-1deg); }
+            40% { transform: translate(8px, -5px) rotate(1deg); }
+            60% { transform: translate(-5px, -4px) rotate(-0.6deg); }
+            80% { transform: translate(5px, 4px) rotate(0.6deg); }
+        }
+        .shake-active {
+            animation: screenShake 0.32s cubic-bezier(.36,.07,.19,.97) both;
+        }
+
+        /* 엽서 날아오는 모션 */
+        @keyframes postcardFlyIn {
+            0% {
+                opacity: 0;
+                transform: translateY(110px) translateX(-28px) scale(0.68) rotate(-11deg);
+            }
+            55% {
+                opacity: 1;
+                transform: translateY(-12px) translateX(6px) scale(1.04) rotate(2.5deg);
+            }
+            80% {
+                transform: translateY(4px) translateX(-2px) scale(0.99) rotate(-1deg);
+            }
+            100% {
+                opacity: 1;
+                transform: translateY(0) translateX(0) scale(1) rotate(0deg);
+            }
+        }
+        .postcard-fly-in {
+            animation: postcardFlyIn 1.35s cubic-bezier(0.22, 1, 0.36, 1) both;
+        }
+
+        @keyframes flyingEnvelope {
+            0% {
+                opacity: 0;
+                transform: translate(-110px, 160px) scale(0.55) rotate(-18deg);
+            }
+            35% {
+                opacity: 1;
+                transform: translate(-25px, 20px) scale(0.95) rotate(-5deg);
+            }
+            75% {
+                opacity: 1;
+                transform: translate(12px, -24px) scale(1.06) rotate(4deg);
+            }
+            100% {
+                opacity: 0;
+                transform: translate(0, 0) scale(0.88) rotate(0deg);
+            }
+        }
+        .flying-envelope-anim {
+            animation: flyingEnvelope 1.28s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+        }
+
+        /* 글래스모피즘 패널 (화이트 라이트 테마) */
+        .glass-panel {
+            background: rgba(255, 255, 255, 0.92);
+            backdrop-filter: blur(18px);
+            -webkit-backdrop-filter: blur(18px);
+            border: 1px solid rgba(15, 23, 42, 0.08);
+            box-shadow: 0 10px 30px rgba(15, 23, 42, 0.08);
+        }
+
+        .no-scrollbar::-webkit-scrollbar {
+            display: none;
+        }
+        .no-scrollbar {
+            -ms-overflow-style: none;
+            scrollbar-width: none;
+        }
+    </style>
+</head>
+<body class="w-screen h-screen flex items-center justify-center bg-slate-100">
+    <!-- 모바일 프레임 컨테이너 -->
+    <div id="app-frame" class="relative w-full h-full sm:w-[420px] sm:h-[840px] sm:rounded-[38px] sm:border sm:border-slate-200/90 overflow-hidden bg-white shadow-2xl flex flex-col">
+
+        <!-- 엽서 날아오는 전환 오버레이 -->
+        <div id="postcard-fly-overlay" class="hidden pointer-events-none fixed sm:absolute inset-0 z-40 flex items-center justify-center bg-rose-50/30 backdrop-blur-[1px]">
+            <div id="flying-envelope-card" class="w-56 h-36 rounded-2xl airbnb-gradient text-white p-4 shadow-2xl border border-white/60 flex flex-col justify-between">
+                <div class="flex items-center justify-between text-[11px] font-bold">
+                    <span><i class="fa-solid fa-paper-plane mr-1"></i>TIME CAPSULE</span>
+                    <span>TO FUTURE ME</span>
+                </div>
+                <div class="text-center">
+                    <i class="fa-solid fa-envelope-open-text text-3xl drop-shadow"></i>
+                    <p class="text-xs font-extrabold mt-1">미래의 나에게 엽서 도착 중...</p>
+                </div>
+                <div class="text-[10px] text-rose-100 text-right font-semibold">AIRBNB AR</div>
+            </div>
+        </div>
+
+        <!-- 전역 토스트 알림 -->
+        <div id="toast-banner" class="pointer-events-none fixed sm:absolute top-5 left-1/2 -translate-x-1/2 z-50 px-4 py-2.5 rounded-full glass-panel text-xs font-semibold text-slate-900 shadow-lg opacity-0 transition-opacity duration-300 flex items-center gap-2 whitespace-nowrap">
+            <span class="w-2 h-2 rounded-full bg-[#FF385C]"></span>
+            <span id="toast-text">알림 메시지</span>
+        </div>
+
+        <!-- =========================================================
+             STEP 0: 진입 화면 (랜덤 vs 여행지 선택)
+        ========================================================== -->
+        <section id="step-enter" class="relative flex-1 flex flex-col justify-between p-6 bg-gradient-to-b from-white via-rose-50/40 to-white">
+            <!-- 상단 브랜드 헤더 -->
+            <div class="flex items-center justify-between pt-2">
+                <div class="flex items-center gap-2">
+                    <div class="w-9 h-9 rounded-2xl airbnb-gradient flex items-center justify-center shadow-lg shadow-rose-500/20 text-white">
+                        <i class="fa-brands fa-airbnb text-xl"></i>
+                    </div>
+                    <div>
+                        <span class="text-xs font-bold tracking-wider text-[#FF385C] uppercase block">AIRBNB AR ESCAPE</span>
+                        <h1 class="text-sm font-extrabold text-slate-900">벽 너머의 숙소</h1>
+                    </div>
+                </div>
+                <span class="text-[11px] font-semibold px-2.5 py-1 rounded-full bg-rose-50 text-[#FF385C] border border-rose-100">
+                    AR 체험
+                </span>
+            </div>
+
+            <!-- 중앙 비주얼 & 카피 -->
+            <div class="my-auto text-center space-y-5">
+                <div class="relative w-full h-56 rounded-[30px] overflow-hidden border border-slate-200 shadow-xl">
+                    <img src="https://images.unsplash.com/photo-1600585154340-be6161a56a0c?auto=format&fit=crop&w=1000&q=85"
+                         alt="벽 너머 숙소 미리보기"
+                         class="w-full h-full object-cover"
+                         onerror="this.src='https://placehold.co/800x500/f1f5f9/334155?text=Airbnb+AR'">
+                    <div class="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent flex flex-col justify-end p-4 text-left">
+                        <span class="text-[11px] font-bold text-rose-200 tracking-wide">KNOCK THE WALL</span>
+                        <p class="text-sm font-extrabold text-white leading-snug">주먹으로 벽을 두드리면<br>낯선 여행지의 방이 열립니다</p>
+                    </div>
+                </div>
+
+                <div class="space-y-2 px-1">
+                    <h2 class="text-2xl font-extrabold tracking-tight leading-tight text-slate-900">
+                        지금 있는 방의 벽을 깨고<br>
+                        <span class="text-[#FF385C]">미래의 여행지</span>로 들어가세요
+                    </h2>
+                    <p class="text-xs text-slate-600 leading-relaxed">
+                        먼저 랜덤 여행지 또는 원하는 여행지를 고른 뒤,<br>
+                        카메라 앞에서 주먹을 휘두르거나 벽을 두드려 보세요.
+                    </p>
+                </div>
+            </div>
+
+            <!-- 하단 진입 모드 선택 -->
+            <div class="space-y-3 pb-2">
+                <div class="grid grid-cols-2 gap-2.5">
+                    <button id="btn-mode-random" type="button"
+                            class="mode-btn py-3.5 px-3 rounded-2xl bg-white hover:bg-rose-50/60 border border-slate-200 text-slate-800 text-xs font-bold flex flex-col items-center gap-1.5 shadow-sm transition">
+                        <i class="fa-solid fa-dice text-[#FF385C] text-base"></i>
+                        <span>랜덤 여행지</span>
+                    </button>
+                    <button id="btn-mode-search" type="button"
+                            class="mode-btn py-3.5 px-3 rounded-2xl bg-white hover:bg-rose-50/60 border border-slate-200 text-slate-800 text-xs font-bold flex flex-col items-center gap-1.5 shadow-sm transition">
+                        <i class="fa-solid fa-magnifying-glass-location text-[#FF385C] text-base"></i>
+                        <span>여행지 선택</span>
+                    </button>
+                </div>
+
+                <!-- 여행지 선택 입력창 -->
+                <div id="dest-search-panel" class="hidden glass-panel rounded-2xl p-3 space-y-2">
+                    <label class="text-[11px] text-slate-600 font-semibold block">어디로 떠나고 싶나요? (예: 도쿄, 제주도, 파리, 스위스)</label>
+                    <div class="flex gap-2">
+                        <input id="dest-search-input" type="text" placeholder="도시명이나 분위기 입력..."
+                               class="flex-1 bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-900 placeholder-slate-400 focus:outline-none focus:border-[#FF385C]">
+                        <button id="btn-apply-search" type="button"
+                                class="px-3.5 py-2 rounded-xl bg-slate-900 text-white text-xs font-bold hover:bg-slate-800">
+                            설정
+                        </button>
+                    </div>
+                </div>
+
+                <!-- 랜덤 선택 시 선택된 나라 이름 표시 창 -->
+                <div id="random-predict-box" class="hidden bg-rose-50/90 rounded-2xl px-4 py-3 border border-rose-200 flex items-center justify-between gap-2">
+                    <div class="flex items-center gap-2 min-w-0">
+                        <i class="fa-solid fa-location-dot text-[#FF385C] text-xs shrink-0"></i>
+                        <p id="predict-country-name" class="text-xs font-extrabold text-slate-900 truncate">스페인 바르셀로나</p>
+                    </div>
+                    <span id="predict-region-tag" class="shrink-0 text-[10px] px-2 py-0.5 rounded-md bg-white text-[#FF385C] border border-rose-200 font-bold">바르셀로나</span>
+                </div>
+
+                <button id="btn-start-ar" type="button"
+                        class="hidden w-full py-4 rounded-2xl airbnb-gradient text-white font-extrabold text-sm shadow-lg shadow-rose-500/25 flex items-center justify-center gap-2 active:scale-95 transition">
+                    <i class="fa-solid fa-hand-fist text-base"></i>
+                    <span>벽 두드리고 숙소 열기</span>
+                </button>
+            </div>
+        </section>
+
+        <!-- =========================================================
+             STEP 1: AR 벽 부수기 & 숙소 내부 탐험 화면
+        ========================================================== -->
+        <section id="step-ar" class="hidden relative flex-1 flex flex-col justify-between overflow-hidden bg-slate-50">
+            <!-- 실제 카메라 비디오 (권한 허용 시) -->
+            <video id="camera-feed" autoplay playsinline muted class="absolute inset-0 w-full h-full object-cover opacity-0 pointer-events-none"></video>
+
+            <!-- 메인 AR 인터랙션 캔버스 (벽 균열 + 숙소 인테리어) -->
+            <canvas id="ar-canvas" class="absolute inset-0 w-full h-full block touch-none"></canvas>
+
+            <!-- 상단 HUD 바 -->
+            <div id="escape-top-panel" class="relative z-20 flex items-center justify-between p-4 pt-5">
+                <button id="btn-back-home" type="button"
+                        class="w-10 h-10 rounded-full glass-panel flex items-center justify-center text-slate-800 hover:bg-white">
+                    <i class="fa-solid fa-chevron-left text-sm"></i>
+                </button>
+
+                <div class="glass-panel px-3.5 py-1.5 rounded-full flex items-center gap-2">
+                    <span id="ar-status-dot" class="w-2 h-2 rounded-full bg-[#FF385C] animate-pulse"></span>
+                    <span id="ar-status-label" class="text-xs font-bold text-slate-900">벽 타격 대기 중 (0/5)</span>
+                </div>
+
+                <button id="btn-toggle-clean-view" type="button" title="UI 숨기고 공간만 보기"
+                        class="w-10 h-10 rounded-full glass-panel flex items-center justify-center text-slate-800 hover:bg-white">
+                    <i class="fa-regular fa-eye text-sm"></i>
+                </button>
+            </div>
+
+            <!-- UI 숨김 모드 복구 플로팅 버튼 -->
+            <div id="clean-view-restore-bar" class="hidden absolute top-5 right-4 z-30">
+                <button id="btn-restore-ui" type="button"
+                        class="px-3.5 py-2 rounded-full glass-panel text-xs font-bold text-slate-900 flex items-center gap-1.5 shadow-lg">
+                    <i class="fa-regular fa-eye-slash text-[#FF385C]"></i>
+                    <span>UI 다시 보기</span>
+                </button>
+            </div>
+
+            <!-- 중앙 타격 가이드 (벽 부수기 전) -->
+            <div id="ar-target-overlay" class="relative z-20 my-auto flex flex-col items-center justify-center pointer-events-none px-6 text-center">
+                <div id="punch-reticle" class="relative w-44 h-44 rounded-full border-2 border-dashed border-[#FF385C]/70 bg-white/45 backdrop-blur-[2px] flex flex-col items-center justify-center transition-transform duration-150 shadow-lg">
+                    <div id="reticle-progress-ring" class="absolute inset-0 rounded-full border-4 border-[#FF385C] opacity-40"></div>
+                    <i class="fa-solid fa-hand-fist text-4xl text-[#FF385C] mb-2 drop-shadow-sm"></i>
+                    <span class="text-xs font-extrabold text-slate-900 tracking-tight">주먹으로 벽을 두드리세요!</span>
+                    <span class="text-[11px] text-slate-600 font-semibold mt-0.5">타격 <strong id="hit-counter" class="text-[#FF385C]">0</strong> / 5</span>
+                </div>
+                <p class="mt-4 text-[11px] text-slate-700 font-semibold bg-white/90 px-3.5 py-1.5 rounded-full border border-slate-200 shadow-sm">
+                    💡 카메라 앞에서 주먹을 휘두르거나 손가락으로 벽을 두드리세요
+                </p>
+            </div>
+
+            <!-- 벽 열린 후 숙소 내부 & 타임캡슐 이동 슬림 패널 -->
+            <div id="ar-escape-overlay" class="hidden relative z-20 mt-auto p-3.5">
+                <div class="glass-panel rounded-2xl px-4 py-3 space-y-2.5 shadow-xl">
+                    <div class="flex items-center justify-between gap-2">
+                        <div class="min-w-0 flex-1">
+                            <div class="flex items-center gap-1.5">
+                                <span id="layer-badge" class="inline-block text-[10px] font-extrabold px-2 py-0.5 rounded-md bg-[#FF385C] text-white shrink-0">OPEN</span>
+                                <h2 id="escape-dest-title" class="text-xs font-extrabold text-slate-900 truncate">사그라다 파밀리아 뷰 테라스 로프트</h2>
+                            </div>
+                            <p id="escape-dest-desc" class="text-[11px] text-slate-600 truncate mt-0.5">벽 너머 열린 숙소 공간입니다.</p>
+                        </div>
+                    </div>
+
+                    <div class="flex justify-center pt-0.5">
+                        <button id="btn-claim-reward" type="button"
+                                class="w-full max-w-[260px] py-2.5 px-4 rounded-xl airbnb-gradient text-xs font-extrabold text-white flex items-center justify-center gap-1.5 shadow-md active:scale-95 transition">
+                            <i class="fa-solid fa-envelope-open-text"></i>
+                            <span>타임캡슐 엽서 쓰기</span>
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- =========================================================
+             STEP 2~4: 미래의 나에게 보내는 '여행 타임캡슐 엽서' & 위시리스트 전환
+        ========================================================== -->
+        <section id="step-result" class="hidden flex-1 flex flex-col justify-between p-5 bg-slate-50 overflow-y-auto no-scrollbar space-y-4">
+            <!-- 상단 헤더 -->
+            <div class="flex items-center justify-between pt-1">
+                <button id="btn-result-back-ar" type="button"
+                        class="w-9 h-9 rounded-full bg-white border border-slate-200 flex items-center justify-center text-slate-700 hover:text-slate-900 shadow-sm">
+                    <i class="fa-solid fa-arrow-left text-xs"></i>
+                </button>
+                <span class="text-xs font-extrabold text-slate-900">미래의 나에게 보내는 여행 타임캡슐</span>
+                <span class="text-[11px] font-bold text-[#FF385C]">TIME CAPSULE</span>
+            </div>
+
+            <!-- 최상단: 벽 뚫린 숙소 이미지 & 위시리스트 하트 버튼 -->
+            <div id="broken-stay-hero-card" class="relative rounded-3xl overflow-hidden border border-slate-200 bg-white shadow-lg shrink-0">
+                <div class="relative h-48 w-full overflow-hidden bg-slate-100">
+                    <img id="result-dest-img"
+                         src="https://images.unsplash.com/photo-1600585154340-be6161a56a0c?auto=format&fit=crop&w=900&q=80"
+                         alt="벽 뚫린 숙소 이미지"
+                         class="w-full h-full object-cover"
+                         onerror="this.src='https://placehold.co/800x450/f1f5f9/334155?text=Broken+Wall+Stay'">
+                    <div class="absolute inset-0 bg-gradient-to-t from-black/65 via-black/15 to-transparent"></div>
+
+                    <div class="absolute top-3 left-3 bg-white/95 backdrop-blur px-2.5 py-1 rounded-full text-[10px] font-bold text-slate-800 shadow-sm">
+                        <i class="fa-solid fa-location-dot text-[#FF385C] mr-1"></i>
+                        <span id="result-dest-name">스페인 바르셀로나</span>
+                    </div>
+
+                    <button id="btn-broken-stay-heart" type="button" aria-label="벽 뚫린 숙소 위시리스트 하트"
+                            class="absolute top-3 right-3 w-10 h-10 rounded-full bg-white/95 backdrop-blur border border-slate-200 text-[#FF385C] flex items-center justify-center shadow-md active:scale-90 transition">
+                        <i id="broken-stay-heart-icon" class="fa-regular fa-heart text-base text-[#FF385C]"></i>
+                    </button>
+
+                    <div class="absolute bottom-3 left-3.5 right-3.5 flex items-end justify-between gap-2">
+                        <div class="min-w-0">
+                            <span class="inline-block text-[10px] font-extrabold px-2 py-0.5 rounded-md bg-[#FF385C] text-white mb-1">벽 너머 열린 숙소</span>
+                            <p id="postcard-broken-stay-name" class="text-sm font-extrabold text-white drop-shadow truncate">사그라다 파밀리아 뷰 테라스 로프트</p>
+                        </div>
+                        <span id="postcard-open-date-badge" class="shrink-0 bg-black/50 backdrop-blur px-2 py-1 rounded-full text-[10px] font-bold text-white">
+                            2027.05
+                        </span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 타임캡슐 엽서 메시지 카드 -->
+            <div id="postcard-preview-box" class="relative rounded-3xl overflow-hidden border border-slate-200 bg-white shadow-sm shrink-0">
+                <div class="p-4 space-y-2 bg-white">
+                    <div class="flex items-center justify-between">
+                        <span class="text-[10px] font-bold text-[#FF385C] uppercase tracking-wider">POSTCARD FOR FUTURE ME</span>
+                        <span class="text-[11px] text-slate-400">발신: 오늘의 나 (2026.11)</span>
+                    </div>
+                    <p id="postcard-message-preview" class="text-sm font-bold text-slate-900 leading-snug">
+                        “#퇴근길한숨 끝내고 #6개월뒤엔여기 에서 창밖 노을을 보며 쉴 나에게”
+                    </p>
+                </div>
+            </div>
+
+            <!-- STEP 1: 엽서 칩 선택 및 직접 메시지 작성 -->
+            <div class="bg-white rounded-3xl p-4 space-y-3 border border-slate-200 shadow-sm">
+                <div class="flex items-center justify-between">
+                    <span class="text-xs font-extrabold text-slate-900">STEP 1. 엽서 칩 선택 & 직접 쓰기</span>
+                    <span class="text-[10px] text-[#FF385C] font-bold">맞춤 엽서</span>
+                </div>
+
+                <!-- 상황·다짐 칩 -->
+                <div class="flex flex-wrap gap-1.5" id="chip-group">
+                    <button type="button" data-chip="#야근탈출" class="mood-chip px-3 py-1.5 rounded-full text-xs font-semibold bg-slate-100 text-slate-700 border border-slate-200 transition">#야근탈출</button>
+                    <button type="button" data-chip="#시험끝나고" class="mood-chip px-3 py-1.5 rounded-full text-xs font-semibold bg-slate-100 text-slate-700 border border-slate-200 transition">#시험끝나고</button>
+                    <button type="button" data-chip="#퇴근길한숨" class="mood-chip active px-3 py-1.5 rounded-full text-xs font-semibold bg-[#FF385C] text-white border border-[#FF385C] transition">#퇴근길한숨</button>
+                    <button type="button" data-chip="#6개월뒤엔여기" class="mood-chip active px-3 py-1.5 rounded-full text-xs font-semibold bg-[#FF385C] text-white border border-[#FF385C] transition">#6개월뒤엔여기</button>
+                    <button type="button" data-chip="#이번엔진짜간다" class="mood-chip px-3 py-1.5 rounded-full text-xs font-semibold bg-slate-100 text-slate-700 border border-slate-200 transition">#이번엔진짜간다</button>
+                </div>
+
+                <!-- 직접 쓸 수 있는 엽서 메시지 입력칸 -->
+                <div class="space-y-1">
+                    <label for="custom-postcard-input" class="text-[11px] text-slate-500 font-semibold block">미래의 나에게 직접 한마디 적기</label>
+                    <input id="custom-postcard-input" type="text" maxlength="60"
+                           placeholder="예: 고생 많았어! 이번 연휴엔 꼭 여기로 떠나자"
+                           class="w-full px-3.5 py-2.5 rounded-2xl bg-slate-50 border border-slate-200 text-xs text-slate-900 placeholder-slate-400 focus:outline-none focus:border-[#FF385C]">
+                </div>
+
+                <!-- 도착 시점 선택 -->
+                <div class="pt-1 space-y-1.5">
+                    <p class="text-[11px] text-slate-500 font-semibold">도착 시점 설정</p>
+                    <div class="grid grid-cols-3 gap-1.5" id="timing-group">
+                        <button type="button" data-timing="3개월 뒤 금요일 퇴근길" data-date="2027.02"
+                                class="timing-btn py-2 px-2 rounded-xl bg-slate-50 border border-slate-200 text-[11px] font-semibold text-slate-700 text-center leading-tight">
+                            3개월 뒤<br>금요일 퇴근길
+                        </button>
+                        <button type="button" data-timing="6개월 뒤 첫 연휴 전날" data-date="2027.05"
+                                class="timing-btn active py-2 px-2 rounded-xl bg-rose-50 border border-[#FF385C] text-[11px] font-bold text-[#FF385C] text-center leading-tight">
+                            6개월 뒤<br>첫 연휴 전날
+                        </button>
+                        <button type="button" data-timing="첫눈·초여름이 올 때" data-date="2027.06"
+                                class="timing-btn py-2 px-2 rounded-xl bg-slate-50 border border-slate-200 text-[11px] font-semibold text-slate-700 text-center leading-tight">
+                            이 여행지에<br>초여름 올 때
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- STEP 2: 가까운 다른 숙소 추천 (벽 뚫고 나온 숙소 제외) -->
+            <div class="bg-white rounded-3xl p-4 space-y-3 border border-slate-200 shadow-sm">
+                <div class="space-y-1">
+                    <span class="text-xs font-extrabold text-slate-900">STEP 2. 가까운 다른 숙소 추천</span>
+                    <p class="text-[11px] text-slate-600 leading-relaxed">
+                        방금 열린 숙소 주변의 또 다른 전망 숙소예요. 마음에 드는 근방 숙소도 위시리스트에 담아보세요.
+                    </p>
+                </div>
+
+                <div id="stay-cards-container" class="flex gap-3 overflow-x-auto no-scrollbar pb-1">
+                    <!-- JS로 동적 렌더링 -->
+                </div>
+            </div>
+
+            <!-- STEP 3: 친구 초대 & 타임캡슐 미리보기 (하트 미선택 시에도 기본 노출) -->
+            <div id="wishlist-sealed-panel" class="rounded-3xl p-4 bg-gradient-to-r from-rose-50 to-white border border-rose-200 space-y-3 shadow-md">
+                <div class="flex items-center gap-3">
+                    <div class="w-11 h-11 rounded-2xl airbnb-gradient flex items-center justify-center text-white text-lg shrink-0 shadow-md">
+                        <i class="fa-solid fa-envelope-open-text"></i>
+                    </div>
+                    <div class="min-w-0">
+                        <span class="text-[10px] font-bold text-[#FF385C] uppercase tracking-wider">STEP 3 · 타임캡슐 & 친구 초대</span>
+                        <h3 id="wishlist-folder-title" class="text-sm font-extrabold text-slate-900 truncate">
+                            💌 [2027.05] 나의 바르셀로나 타임캡슐
+                        </h3>
+                        <p id="wishlist-sub-status" class="hidden text-[11px] text-slate-600 truncate"></p>
+                    </div>
+                </div>
+
+                <div class="grid grid-cols-2 gap-2">
+                    <button id="btn-share-capsule" type="button"
+                            class="relative z-10 cursor-pointer py-3 px-2.5 rounded-2xl bg-white hover:bg-slate-50 border border-slate-200 text-slate-800 font-bold text-xs flex items-center justify-center gap-1.5 active:scale-95 transition">
+                        <i class="fa-solid fa-user-plus text-[#FF385C]"></i>
+                        <span id="btn-share-capsule-label">친구 초대하기</span>
+                    </button>
+                    <button id="btn-preview-future-open" type="button"
+                            class="relative z-10 cursor-pointer py-3 px-2.5 rounded-2xl bg-slate-900 text-white font-extrabold text-xs flex items-center justify-center gap-1.5 shadow-sm active:scale-95 transition">
+                        <i class="fa-solid fa-bell text-rose-400"></i>
+                        <span>타임캡슐 미리보기</span>
+                    </button>
+                </div>
+            </div>
+
+            <!-- 친구 초대장 미리보기 및 복사 모달 -->
+            <div id="share-preview-modal" class="hidden fixed inset-0 z-50 bg-slate-900/45 backdrop-blur-sm flex items-end sm:items-center justify-center p-4">
+                <div class="w-full max-w-[400px] bg-white border border-slate-200 rounded-3xl p-5 space-y-4 shadow-2xl">
+                    <div class="flex items-center justify-end">
+                        <button id="btn-close-share-modal" type="button" class="w-8 h-8 rounded-full bg-slate-100 text-slate-600 flex items-center justify-center">
+                            <i class="fa-solid fa-xmark text-xs"></i>
+                        </button>
+                    </div>
+                    <div class="space-y-1.5">
+                        <h4 class="text-base font-extrabold text-slate-900">친구 초대장이 클립보드에 복사되었어요!</h4>
+                        <p class="text-[11px] text-slate-500">함께 떠나고 싶은 친구에게 바로 붙여넣기 해보세요.</p>
+                        <textarea id="share-invite-textarea" readonly rows="5"
+                                  class="w-full p-3 rounded-2xl bg-slate-50 border border-slate-200 text-xs text-slate-800 leading-relaxed focus:outline-none"></textarea>
+                    </div>
+                    <button id="btn-copy-invite-again" type="button"
+                            class="w-full py-3 rounded-2xl airbnb-gradient text-xs font-extrabold text-white flex items-center justify-center gap-1.5 shadow-md active:scale-95">
+                        <i class="fa-regular fa-copy"></i>
+                        <span>초대 문구 복사하기</span>
+                    </button>
+                </div>
+            </div>
+        </section>
+
+        <!-- =========================================================
+             STEP 4 모달: 도착할 타임캡슐 미리보기
+        ========================================================== -->
+        <div id="future-modal" class="hidden fixed inset-0 z-50 bg-slate-900/45 backdrop-blur-sm flex items-end sm:items-center justify-center p-4">
+            <div class="w-full max-w-[400px] bg-white border border-slate-200 rounded-3xl p-5 space-y-4 shadow-2xl">
+                <div class="flex items-center justify-between">
+                    <span class="text-[11px] font-bold px-2.5 py-1 rounded-full bg-rose-50 text-[#FF385C] border border-rose-100">
+                        <i class="fa-solid fa-clock-rotate-left mr-1"></i>도착할 타임캡슐 미리보기
+                    </span>
+                    <button id="btn-close-future-modal" type="button" class="w-8 h-8 rounded-full bg-slate-100 text-slate-600 flex items-center justify-center">
+                        <i class="fa-solid fa-xmark text-xs"></i>
+                    </button>
+                </div>
+
+                <div class="space-y-1.5">
+                    <h4 id="modal-open-headline" class="text-base font-extrabold text-slate-900">
+                        2027.05, 과거의 나로부터 여행 엽서가 도착했어요!
+                    </h4>
+                    <p id="modal-open-quote" class="text-xs text-slate-800 bg-rose-50/70 p-3 rounded-2xl border border-rose-100 leading-relaxed font-medium">
+                        “#퇴근길한숨 끝내고 #6개월뒤엔여기 에서 창밖 노을을 보며 쉴 나에게”
+                    </p>
+                </div>
+
+                <div class="p-3.5 rounded-2xl bg-slate-50 border border-slate-200 flex items-center justify-between">
+                    <div>
+                        <p id="modal-stay-name" class="text-xs font-bold text-slate-900">사그라다 파밀리아 뷰 테라스 로프트</p>
+                        <p class="text-[11px] text-emerald-600 font-semibold mt-0.5">● 다가오는 연휴 예약 가능 일정 열림</p>
+                    </div>
+                    <span id="modal-stay-price" class="text-xs font-extrabold text-slate-900">₩245,000/박</span>
+                </div>
+
+                <div class="grid grid-cols-2 gap-2.5 pt-1">
+                    <button id="btn-invite-friend" type="button"
+                            class="py-3 rounded-2xl bg-slate-100 hover:bg-slate-200/70 text-xs font-bold text-slate-800 flex items-center justify-center gap-1.5 active:scale-95">
+                        <i class="fa-solid fa-user-plus text-[#FF385C]"></i>
+                        <span>친구와 함께하기</span>
+                    </button>
+                    <button id="btn-book-now" type="button"
+                            class="py-3 rounded-2xl airbnb-gradient text-xs font-extrabold text-white flex items-center justify-center gap-1.5 shadow-md active:scale-95">
+                        <i class="fa-solid fa-calendar-check"></i>
+                        <span>일정 선택하기</span>
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // =========================================================
+        // 1. 핵심 상태, DOM 참조 및 여행지 데이터 초기화
+        // =========================================================
+        const ROOM_INTERIOR_POOL = [
+            {
+                img: 'https://images.unsplash.com/photo-1600585154340-be6161a56a0c?auto=format&fit=crop&w=1600&q=85',
+                thumb: 'https://images.unsplash.com/photo-1600585154340-be6161a56a0c?auto=format&fit=crop&w=600&q=80',
+                vibe: '따뜻한 햇살 테라스 홈'
+            },
+            {
+                img: 'https://images.unsplash.com/photo-1513694203232-719a280e022f?auto=format&fit=crop&w=1600&q=85',
+                thumb: 'https://images.unsplash.com/photo-1513694203232-719a280e022f?auto=format&fit=crop&w=600&q=80',
+                vibe: '포근한 우드 샬레 라운지'
+            },
+            {
+                img: 'https://images.unsplash.com/photo-1600210492486-724fe5c67fb0?auto=format&fit=crop&w=1600&q=85',
+                thumb: 'https://images.unsplash.com/photo-1600210492486-724fe5c67fb0?auto=format&fit=crop&w=600&q=80',
+                vibe: '미니멀 오션 리빙룸'
+            },
+            {
+                img: 'https://images.unsplash.com/photo-1600607687939-ce8a6c25118c?auto=format&fit=crop&w=1600&q=85',
+                thumb: 'https://images.unsplash.com/photo-1600607687939-ce8a6c25118c?auto=format&fit=crop&w=600&q=80',
+                vibe: '모던 아키텍처 스위트'
+            },
+            {
+                img: 'https://images.unsplash.com/photo-1600566753376-12c8ab7fb75b?auto=format&fit=crop&w=1600&q=85',
+                thumb: 'https://images.unsplash.com/photo-1600566753376-12c8ab7fb75b?auto=format&fit=crop&w=600&q=80',
+                vibe: '내추럴 린넨 스튜디오'
+            },
+            {
+                img: 'https://images.unsplash.com/photo-1616594039964-ae9021a400a0?auto=format&fit=crop&w=1600&q=85',
+                thumb: 'https://images.unsplash.com/photo-1616594039964-ae9021a400a0?auto=format&fit=crop&w=600&q=80',
+                vibe: '프라이빗 선셋 레지던스'
+            },
+            {
+                img: 'https://images.unsplash.com/photo-1600585152220-90363fe7e115?auto=format&fit=crop&w=1600&q=85',
+                thumb: 'https://images.unsplash.com/photo-1600585152220-90363fe7e115?auto=format&fit=crop&w=600&q=80',
+                vibe: '썬릿 다이닝 라운지'
+            },
+            {
+                img: 'https://images.unsplash.com/photo-1600573472591-ee6b68d14c68?auto=format&fit=crop&w=1600&q=85',
+                thumb: 'https://images.unsplash.com/photo-1600573472591-ee6b68d14c68?auto=format&fit=crop&w=600&q=80',
+                vibe: '갤러리 무드 리빙룸'
+            },
+            {
+                img: 'https://images.unsplash.com/photo-1586023492125-27b2c045efd7?auto=format&fit=crop&w=1600&q=85',
+                thumb: 'https://images.unsplash.com/photo-1586023492125-27b2c045efd7?auto=format&fit=crop&w=600&q=80',
+                vibe: '벨벳 소파 아틀리에'
+            },
+            {
+                img: 'https://images.unsplash.com/photo-1618221195710-dd6b41faaea6?auto=format&fit=crop&w=1600&q=85',
+                thumb: 'https://images.unsplash.com/photo-1618221195710-dd6b41faaea6?auto=format&fit=crop&w=600&q=80',
+                vibe: '코지 웜톤 스위트룸'
+            },
+            {
+                img: 'https://images.unsplash.com/photo-1615873968403-89e068629265?auto=format&fit=crop&w=1600&q=85',
+                thumb: 'https://images.unsplash.com/photo-1615873968403-89e068629265?auto=format&fit=crop&w=600&q=80',
+                vibe: '북유럽 우드 스튜디오'
+            },
+            {
+                img: 'https://images.unsplash.com/photo-1600607687644-c7171b42498f?auto=format&fit=crop&w=1600&q=85',
+                thumb: 'https://images.unsplash.com/photo-1600607687644-c7171b42498f?auto=format&fit=crop&w=600&q=80',
+                vibe: '하이실링 모던 홀'
+            },
+            {
+                img: 'https://images.unsplash.com/photo-1600566752355-35792bedcfea?auto=format&fit=crop&w=1600&q=85',
+                thumb: 'https://images.unsplash.com/photo-1600566752355-35792bedcfea?auto=format&fit=crop&w=600&q=80',
+                vibe: '카밍 스톤 리빙룸'
+            },
+            {
+                img: 'https://images.unsplash.com/photo-1505693416388-ac5ce068fe85?auto=format&fit=crop&w=1600&q=85',
+                thumb: 'https://images.unsplash.com/photo-1505693416388-ac5ce068fe85?auto=format&fit=crop&w=600&q=80',
+                vibe: '트랜퀼 파빌리온 룸'
+            },
+            {
+                img: 'https://images.unsplash.com/photo-1560448204-e02f11c3d0e2?auto=format&fit=crop&w=1600&q=85',
+                thumb: 'https://images.unsplash.com/photo-1560448204-e02f11c3d0e2?auto=format&fit=crop&w=600&q=80',
+                vibe: '어반 테라스 아파트먼트'
+            },
+            {
+                img: 'https://images.unsplash.com/photo-1522708323590-d24dbb6b0267?auto=format&fit=crop&w=1600&q=85',
+                thumb: 'https://images.unsplash.com/photo-1522708323590-d24dbb6b0267?auto=format&fit=crop&w=600&q=80',
+                vibe: '선릿 로프트 리빙룸'
+            },
+            {
+                img: 'https://images.unsplash.com/photo-1502672260266-1c1ef2d93688?auto=format&fit=crop&w=1600&q=85',
+                thumb: 'https://images.unsplash.com/photo-1502672260266-1c1ef2d93688?auto=format&fit=crop&w=600&q=80',
+                vibe: '노르딕 파노라마 거실'
+            },
+            {
+                img: 'https://images.unsplash.com/photo-1560185127-6ed189bf02f2?auto=format&fit=crop&w=1600&q=85',
+                thumb: 'https://images.unsplash.com/photo-1560185127-6ed189bf02f2?auto=format&fit=crop&w=600&q=80',
+                vibe: '코지 가든 라운지'
+            }
+        ];
+
+        let usedRoomPoolCursor = 0;
+
+        function takeUniqueRoomPhoto(offsetHint = 0) {
+            const poolLen = ROOM_INTERIOR_POOL.length;
+            const idx = (usedRoomPoolCursor + offsetHint) % poolLen;
+            usedRoomPoolCursor = (usedRoomPoolCursor + 1) % poolLen;
+            return ROOM_INTERIOR_POOL[idx];
+        }
+
+        // 랜덤 여행지 전용 3곳 (제주도, 스위스, 바르셀로나)
+        const RANDOM_DESTINATION_IDS = ['jeju', 'swiss', 'barcelona'];
+
+        // GitHub raw 직링크로 연결된 대표 숙소 이미지 URL (1: 스페인 바르셀로나, 2: 스위스 체르마트, 3: 제주도 성산)
+        const USER_STAY_IMAGES = {
+            barcelona: 'https://raw.githubusercontent.com/silver0726jin-lgtm/my-accessible-stay/main/spain.png',
+            swiss: 'https://raw.githubusercontent.com/silver0726jin-lgtm/my-accessible-stay/main/switzerland.png',
+            jeju: 'https://raw.githubusercontent.com/silver0726jin-lgtm/my-accessible-stay/main/jeju.png'
+        };
+
+        const DESTINATIONS = [
+            {
+                id: 'barcelona',
+                name: '스페인 바르셀로나',
+                shortName: '바르셀로나',
+                title: '사그라다 파밀리아 뷰 테라스 로프트',
+                desc: '따뜻한 지중해 햇살과 사그라다 파밀리아 성당이 한눈에 들어오는 바르셀로나 숙소입니다.',
+                panoramaUrl: USER_STAY_IMAGES.barcelona,
+                stays: [
+                    { name: '사그라다 파밀리아 뷰 테라스 로프트', price: '₩245,000/박', tag: '테라스 스위트', img: USER_STAY_IMAGES.barcelona, fullImg: USER_STAY_IMAGES.barcelona },
+                    { name: '에이샴플레 아치 발코니 스위트', price: '₩198,000/박', tag: '부티크 홈', img: ROOM_INTERIOR_POOL[6].thumb, fullImg: ROOM_INTERIOR_POOL[6].img },
+                    { name: '고딕 지구 린넨 아트 스튜디오', price: '₩176,000/박', tag: '감성 로프트', img: ROOM_INTERIOR_POOL[7].thumb, fullImg: ROOM_INTERIOR_POOL[7].img }
+                ]
+            },
+            {
+                id: 'swiss',
+                name: '스위스 체르마트',
+                shortName: '스위스',
+                title: '마터호른 뷰 파노라마 샬레',
+                desc: '벽난로와 설산 마터호른 전망이 어우러진 스위스 알프스 샬레입니다.',
+                panoramaUrl: USER_STAY_IMAGES.swiss,
+                stays: [
+                    { name: '마터호른 뷰 파노라마 샬레', price: '₩380,000/박', tag: '알파인 샬레', img: USER_STAY_IMAGES.swiss, fullImg: USER_STAY_IMAGES.swiss },
+                    { name: '체르마트 벽난로 우드 캐빈', price: '₩310,000/박', tag: '원목 캐빈', img: ROOM_INTERIOR_POOL[8].thumb, fullImg: ROOM_INTERIOR_POOL[8].img },
+                    { name: '고르너그라트 스카이 우드 로지', price: '₩289,000/박', tag: '산장 스위트', img: ROOM_INTERIOR_POOL[9].thumb, fullImg: ROOM_INTERIOR_POOL[9].img }
+                ]
+            },
+            {
+                id: 'jeju',
+                name: '대한민국 제주도',
+                shortName: '제주도',
+                title: '성산 오션 프라이빗 스테이',
+                desc: '돌담과 서까래, 성산일출봉과 에메랄드 바다가 펼쳐지는 제주도 스테이입니다.',
+                panoramaUrl: USER_STAY_IMAGES.jeju,
+                stays: [
+                    { name: '성산 오션 프라이빗 스테이', price: '₩220,000/박', tag: '오션 라운지', img: USER_STAY_IMAGES.jeju, fullImg: USER_STAY_IMAGES.jeju },
+                    { name: '애월 돌담 감성 독채 하우스', price: '₩185,000/박', tag: '독채 스테이', img: ROOM_INTERIOR_POOL[10].thumb, fullImg: ROOM_INTERIOR_POOL[10].img },
+                    { name: '구좌 귤밭 선셋 우드 빌라', price: '₩254,000/박', tag: '프라이빗 빌라', img: ROOM_INTERIOR_POOL[11].thumb, fullImg: ROOM_INTERIOR_POOL[11].img }
+                ]
+            },
+            {
+                id: 'paris',
+                name: '프랑스 파리',
+                shortName: '파리',
+                title: '에펠 뷰 오스만 아파트먼트',
+                desc: '클래식한 프렌치 무드의 파리 아파트먼트입니다.',
+                panoramaUrl: ROOM_INTERIOR_POOL[3].img,
+                stays: [
+                    { name: '에펠 뷰 오스만 아파트먼트', price: '₩340,000/박', tag: '오스만 스위트', img: ROOM_INTERIOR_POOL[3].thumb, fullImg: ROOM_INTERIOR_POOL[3].img },
+                    { name: '마레지구 채광 가득 빈티지 홈', price: '₩265,000/박', tag: '빈티지 아파트', img: ROOM_INTERIOR_POOL[12].thumb, fullImg: ROOM_INTERIOR_POOL[12].img },
+                    { name: '생제르맹 아틀리에 로프트', price: '₩295,000/박', tag: '아틀리에 홈', img: ROOM_INTERIOR_POOL[13].thumb, fullImg: ROOM_INTERIOR_POOL[13].img }
+                ]
+            },
+            {
+                id: 'tokyo',
+                name: '일본 도쿄',
+                shortName: '도쿄',
+                title: '나카메구로 미니멀 우드 하우스',
+                desc: '정갈하고 따뜻한 도쿄 레지던스 공간입니다.',
+                panoramaUrl: ROOM_INTERIOR_POOL[4].img,
+                stays: [
+                    { name: '나카메구로 미니멀 우드 하우스', price: '₩235,000/박', tag: '미니멀 하우스', img: ROOM_INTERIOR_POOL[4].thumb, fullImg: ROOM_INTERIOR_POOL[4].img },
+                    { name: '다이칸야마 디자이너 스튜디오', price: '₩278,000/박', tag: '디자인 스위트', img: ROOM_INTERIOR_POOL[14].thumb, fullImg: ROOM_INTERIOR_POOL[14].img },
+                    { name: '시부야 스카이 펜트하우스', price: '₩350,000/박', tag: '시티 펜트하우스', img: ROOM_INTERIOR_POOL[15].thumb, fullImg: ROOM_INTERIOR_POOL[15].img }
+                ]
+            },
+            {
+                id: 'kyoto',
+                name: '일본 교토',
+                shortName: '교토',
+                title: '기온 모던 마치야 독채',
+                desc: '고즈넉한 교토 정원 감성의 마치야 스테이입니다.',
+                panoramaUrl: ROOM_INTERIOR_POOL[5].img,
+                stays: [
+                    { name: '기온 모던 마치야 독채', price: '₩290,000/박', tag: '모던 마치야', img: ROOM_INTERIOR_POOL[5].thumb, fullImg: ROOM_INTERIOR_POOL[5].img },
+                    { name: '아라시야마 대나무 정원 스테이', price: '₩260,000/박', tag: '정원 스테이', img: ROOM_INTERIOR_POOL[16].thumb, fullImg: ROOM_INTERIOR_POOL[16].img },
+                    { name: '히가시야마 티하우스 레지던스', price: '₩240,000/박', tag: '티하우스 홈', img: ROOM_INTERIOR_POOL[17].thumb, fullImg: ROOM_INTERIOR_POOL[17].img }
+                ]
+            },
+            {
+                id: 'london',
+                name: '영국 런던',
+                shortName: '런던',
+                title: '노팅힐 파스텔 타운하우스',
+                desc: '따뜻한 벽돌과 채광이 어우러진 런던 타운하우스입니다.',
+                panoramaUrl: ROOM_INTERIOR_POOL[6].img,
+                stays: [
+                    { name: '노팅힐 파스텔 타운하우스', price: '₩315,000/박', tag: '타운하우스', img: ROOM_INTERIOR_POOL[6].thumb, fullImg: ROOM_INTERIOR_POOL[6].img },
+                    { name: '쇼디치 인더스트리얼 로프트', price: '₩255,000/박', tag: '아티스틱 로프트', img: ROOM_INTERIOR_POOL[7].thumb, fullImg: ROOM_INTERIOR_POOL[7].img },
+                    { name: '켄싱턴 가든 클래식 아파트', price: '₩330,000/박', tag: '클래식 스위트', img: ROOM_INTERIOR_POOL[8].thumb, fullImg: ROOM_INTERIOR_POOL[8].img }
+                ]
+            },
+            {
+                id: 'newyork',
+                name: '미국 뉴욕',
+                shortName: '뉴욕',
+                title: '소호 썬릿 캐스트아이언 로프트',
+                desc: '넓은 통창이 매력적인 뉴욕 소호 로프트입니다.',
+                panoramaUrl: ROOM_INTERIOR_POOL[9].img,
+                stays: [
+                    { name: '소호 썬릿 캐스트아이언 로프트', price: '₩395,000/박', tag: '소호 로프트', img: ROOM_INTERIOR_POOL[9].thumb, fullImg: ROOM_INTERIOR_POOL[9].img },
+                    { name: '웨스트빌리지 브라운스톤 홈', price: '₩360,000/박', tag: '브라운스톤', img: ROOM_INTERIOR_POOL[10].thumb, fullImg: ROOM_INTERIOR_POOL[10].img },
+                    { name: '윌리엄스버그 리버사이드 스튜디오', price: '₩275,000/박', tag: '모던 스튜디오', img: ROOM_INTERIOR_POOL[11].thumb, fullImg: ROOM_INTERIOR_POOL[11].img }
+                ]
+            },
+            {
+                id: 'hawaii',
+                name: '미국 하와이',
+                shortName: '하와이',
+                title: '와이키키 선셋 트로피컬 빌라',
+                desc: '트로피컬 휴양 감성이 가득한 하와이 빌라입니다.',
+                panoramaUrl: ROOM_INTERIOR_POOL[12].img,
+                stays: [
+                    { name: '와이키키 선셋 트로피컬 빌라', price: '₩370,000/박', tag: '리조트 빌라', img: ROOM_INTERIOR_POOL[12].thumb, fullImg: ROOM_INTERIOR_POOL[12].img },
+                    { name: '카일루아 비치 코티지', price: '₩320,000/박', tag: '비치 코티지', img: ROOM_INTERIOR_POOL[13].thumb, fullImg: ROOM_INTERIOR_POOL[13].img },
+                    { name: '마우이 마운틴뷰 가든 스위트', price: '₩298,000/박', tag: '가든 스위트', img: ROOM_INTERIOR_POOL[14].thumb, fullImg: ROOM_INTERIOR_POOL[14].img }
+                ]
+            },
+            {
+                id: 'gangneung',
+                name: '대한민국 강릉',
+                shortName: '강릉',
+                title: '안목 송림 프라이빗 우드 스테이',
+                desc: '솔향기와 바다가 어우러진 강릉 우드 스테이입니다.',
+                panoramaUrl: ROOM_INTERIOR_POOL[15].img,
+                stays: [
+                    { name: '안목 송림 프라이빗 우드 스테이', price: '₩189,000/박', tag: '송림 스테이', img: ROOM_INTERIOR_POOL[15].thumb, fullImg: ROOM_INTERIOR_POOL[15].img },
+                    { name: '사천진 미니멀 코스트 하우스', price: '₩172,000/박', tag: '코스트 하우스', img: ROOM_INTERIOR_POOL[16].thumb, fullImg: ROOM_INTERIOR_POOL[16].img },
+                    { name: '경포 썬셋 테라스 펜션', price: '₩210,000/박', tag: '선셋 테라스', img: ROOM_INTERIOR_POOL[17].thumb, fullImg: ROOM_INTERIOR_POOL[17].img }
+                ]
+            },
+            {
+                id: 'busan',
+                name: '대한민국 부산',
+                shortName: '부산',
+                title: '청사포 모던 썬룸 레지던스',
+                desc: '햇살 가득한 바다 전망의 부산 썬룸 숙소입니다.',
+                panoramaUrl: ROOM_INTERIOR_POOL[16].img,
+                stays: [
+                    { name: '청사포 모던 썬룸 레지던스', price: '₩205,000/박', tag: '썬룸 스위트', img: ROOM_INTERIOR_POOL[16].thumb, fullImg: ROOM_INTERIOR_POOL[16].img },
+                    { name: '송정 서퍼 감성 우드 하우스', price: '₩178,000/박', tag: '서퍼 하우스', img: ROOM_INTERIOR_POOL[17].thumb, fullImg: ROOM_INTERIOR_POOL[17].img },
+                    { name: '전포 감성 디자이너 아파트', price: '₩165,000/박', tag: '시티 아파트', img: ROOM_INTERIOR_POOL[0].thumb, fullImg: ROOM_INTERIOR_POOL[0].img }
+                ]
+            }
+        ];
+
+        function showStartArButton() {
+            const startBtn = document.getElementById('btn-start-ar');
+            if (startBtn) {
+                startBtn.classList.remove('hidden');
+            }
+        }
+
+        function updateRandomPredictionWindow() {
+            const box = document.getElementById('random-predict-box');
+            const countryNameEl = document.getElementById('predict-country-name');
+            const regionTag = document.getElementById('predict-region-tag');
+            if (!box || !countryNameEl || !regionTag) return;
+
+            if (state.selectionMode !== 'random' || !state.destinationChosen) {
+                box.classList.add('hidden');
+                return;
+            }
+
+            const dest = DESTINATIONS[state.destIndex] || DESTINATIONS[0];
+            box.classList.remove('hidden');
+            countryNameEl.textContent = dest.name;
+            regionTag.textContent = dest.shortName;
+        }
+
+        const SEARCH_KEYWORDS = {
+            '바르셀로나': 'barcelona',
+            '스페인': 'barcelona',
+            '노을': 'barcelona',
+            '스위스': 'swiss',
+            '체르마트': 'swiss',
+            '설산': 'swiss',
+            '제주': 'jeju',
+            '제주도': 'jeju',
+            '바다': 'jeju',
+            '파리': 'paris',
+            '프랑스': 'paris',
+            '야경': 'paris',
+            '도쿄': 'tokyo',
+            '일본': 'tokyo',
+            '교토': 'kyoto',
+            '료칸': 'kyoto',
+            '런던': 'london',
+            '영국': 'london',
+            '뉴욕': 'newyork',
+            '미국': 'newyork',
+            '하와이': 'hawaii',
+            '휴양': 'hawaii',
+            '강릉': 'gangneung',
+            '부산': 'busan'
+        };
+
+        const state = {
+            step: 'enter',
+            selectionMode: 'none',
+            destinationChosen: false,
+            destIndex: 0,
+            lastRandomIndex: -1,
+            stayIndex: 0,
+            hits: 0,
+            maxHits: 5,
+            broken: false,
+            cameraActive: false,
+            panX: 0,
+            isDragging: false,
+            lastPointerX: 0,
+            selectedChips: ['#퇴근길한숨', '#6개월뒤엔여기'],
+            customMessage: '',
+            selectedTiming: '6개월 뒤 첫 연휴 전날',
+            selectedOpenDate: '2027.05',
+            brokenStaySaved: false,
+            savedNearbyStays: [],
+            crackSeeds: [],
+            debrisParticles: [],
+            shockwaves: [],
+            breakFlashAlpha: 0
+        };
+
+        const stepEnter = document.getElementById('step-enter');
+        const stepAr = document.getElementById('step-ar');
+        const stepResult = document.getElementById('step-result');
+        const arCanvas = document.getElementById('ar-canvas');
+        const ctx = arCanvas ? arCanvas.getContext('2d') : null;
+        const videoEl = document.getElementById('camera-feed');
+        const loadedRooms = new Map();
+
+        let toastTimer = null;
+        function showToast(message) {
+            const banner = document.getElementById('toast-banner');
+            const textEl = document.getElementById('toast-text');
+            if (!banner || !textEl) return;
+            textEl.textContent = message;
+            banner.classList.remove('opacity-0');
+            banner.classList.add('opacity-100');
+            clearTimeout(toastTimer);
+            toastTimer = setTimeout(() => {
+                banner.classList.remove('opacity-100');
+                banner.classList.add('opacity-0');
+            }, 2600);
+        }
+
+        function createFallbackRoomCanvas(labelText = 'Airbnb Stay') {
+            const c = document.createElement('canvas');
+            c.width = 1280;
+            c.height = 720;
+            const g = c.getContext('2d');
+            const grad = g.createLinearGradient(0, 0, c.width, c.height);
+            grad.addColorStop(0, '#fff1f2');
+            grad.addColorStop(0.5, '#f8fafc');
+            grad.addColorStop(1, '#e2e8f0');
+            g.fillStyle = grad;
+            g.fillRect(0, 0, c.width, c.height);
+
+            g.fillStyle = '#0f172a';
+            g.font = '800 44px "Noto Sans KR", sans-serif';
+            g.textAlign = 'center';
+            g.textBaseline = 'middle';
+            g.fillText(labelText, c.width / 2, c.height / 2);
+            return c;
+        }
+
+        function ensureRoomImageLoaded(url, fallbackLabel = 'Airbnb Stay') {
+            if (!url) return createFallbackRoomCanvas(fallbackLabel);
+            if (loadedRooms.has(url)) return loadedRooms.get(url);
+
+            const fallbackCanvas = createFallbackRoomCanvas(fallbackLabel);
+            loadedRooms.set(url, fallbackCanvas);
+
+            const img = new Image();
+            img.crossOrigin = 'anonymous';
+            img.onload = () => {
+                if (img.naturalWidth > 0) {
+                    loadedRooms.set(url, img);
+                }
+            };
+            img.onerror = () => {
+                loadedRooms.set(url, fallbackCanvas);
+            };
+            img.src = url;
+            return loadedRooms.get(url);
+        }
+
+        function resizeCanvas() {
+            if (!arCanvas) return;
+            const rect = arCanvas.parentElement ? arCanvas.parentElement.getBoundingClientRect() : arCanvas.getBoundingClientRect();
+            const dpr = Math.min(window.devicePixelRatio || 1, 2);
+            const w = Math.max(1, Math.floor((rect.width || window.innerWidth) * dpr));
+            const h = Math.max(1, Math.floor((rect.height || window.innerHeight) * dpr));
+            if (arCanvas.width !== w || arCanvas.height !== h) {
+                arCanvas.width = w;
+                arCanvas.height = h;
+            }
+        }
+
+        function drawRoomInterior(dest, cw, ch) {
+            const staysList = dest.stays && dest.stays.length > 0 ? dest.stays : [];
+            const currentStay = staysList.length > 0 ? staysList[state.stayIndex % staysList.length] : null;
+            const targetUrl = (currentStay && (currentStay.fullImg || currentStay.img)) || dest.panoramaUrl;
+            const roomSrc = ensureRoomImageLoaded(targetUrl, `${dest.shortName} 숙소`);
+
+            const imgW = roomSrc.naturalWidth || roomSrc.width || 1280;
+            const imgH = roomSrc.naturalHeight || roomSrc.height || 720;
+            const imgRatio = imgW / Math.max(1, imgH);
+
+            let drawH = ch;
+            let drawW = Math.max(cw * 1.28, drawH * imgRatio);
+            drawH = drawW / imgRatio;
+            if (drawH < ch) {
+                drawH = ch;
+                drawW = drawH * imgRatio;
+            }
+
+            const maxPan = Math.max(0, (drawW - cw) / 2);
+            if (maxPan > 0) {
+                state.panX = Math.max(-maxPan, Math.min(maxPan, state.panX));
+            } else {
+                state.panX = 0;
+            }
+
+            const roomX = (cw - drawW) / 2 + state.panX;
+            const roomY = (ch - drawH) / 2;
+
+            ctx.save();
+            ctx.drawImage(roomSrc, roomX, roomY, drawW, drawH);
+            ctx.restore();
+        }
+
+        function spawnImpactEffects(cx, cy, isFinalBreak = false) {
+            const count = isFinalBreak ? 42 : 16;
+            const palette = ['#ffffff', '#e2e8f0', '#cbd5e1', '#FF385C', '#fda4af', '#fef08a'];
+            for (let i = 0; i < count; i++) {
+                const angle = Math.random() * Math.PI * 2;
+                const speed = (isFinalBreak ? 4.5 : 2.5) + Math.random() * (isFinalBreak ? 9.5 : 6.5);
+                state.debrisParticles.push({
+                    x: cx + (Math.random() - 0.5) * 36,
+                    y: cy + (Math.random() - 0.5) * 36,
+                    vx: Math.cos(angle) * speed,
+                    vy: Math.sin(angle) * speed - (isFinalBreak ? 3.5 : 2.2),
+                    gravity: 0.34 + Math.random() * 0.18,
+                    size: (isFinalBreak ? 8 : 5) + Math.random() * (isFinalBreak ? 14 : 9),
+                    rot: Math.random() * Math.PI * 2,
+                    vRot: (Math.random() - 0.5) * 0.32,
+                    color: palette[Math.floor(Math.random() * palette.length)],
+                    alpha: 1,
+                    decay: isFinalBreak ? 0.016 : 0.025
+                });
+            }
+
+            state.shockwaves.push({
+                x: cx,
+                y: cy,
+                radius: 18,
+                maxRadius: isFinalBreak ? Math.max(arCanvas.width, arCanvas.height) * 0.75 : 190,
+                alpha: 0.95,
+                lineWidth: isFinalBreak ? 10 : 6
+            });
+
+            if (isFinalBreak) {
+                state.breakFlashAlpha = 0.85;
+            }
+        }
+
+        function ensureCrackSeeds() {
+            if (state.crackSeeds.length >= 24) return;
+            for (let i = state.crackSeeds.length; i < 24; i++) {
+                const baseAngle = (Math.PI * 2 * i) / 24 + (Math.random() - 0.5) * 0.18;
+                const segs = [];
+                let curAngle = baseAngle;
+                for (let s = 0; s < 4; s++) {
+                    curAngle += (Math.random() - 0.5) * 0.45;
+                    segs.push({
+                        angle: curAngle,
+                        lenRatio: 0.22 + Math.random() * 0.16
+                    });
+                }
+                state.crackSeeds.push({
+                    angle: baseAngle,
+                    scale: 0.75 + Math.random() * 0.55,
+                    segs
+                });
+            }
+        }
+
+        function drawDebrisAndShockwaves() {
+            for (let i = state.shockwaves.length - 1; i >= 0; i--) {
+                const sw = state.shockwaves[i];
+                sw.radius += (sw.maxRadius - sw.radius) * 0.16 + 4;
+                sw.alpha -= 0.042;
+                if (sw.alpha <= 0) {
+                    state.shockwaves.splice(i, 1);
+                    continue;
+                }
+                ctx.save();
+                ctx.beginPath();
+                ctx.arc(sw.x, sw.y, sw.radius, 0, Math.PI * 2);
+                ctx.strokeStyle = `rgba(255, 56, 92, ${sw.alpha})`;
+                ctx.lineWidth = sw.lineWidth * sw.alpha;
+                ctx.stroke();
+
+                ctx.beginPath();
+                ctx.arc(sw.x, sw.y, sw.radius * 0.78, 0, Math.PI * 2);
+                ctx.strokeStyle = `rgba(255, 255, 255, ${sw.alpha * 0.85})`;
+                ctx.lineWidth = Math.max(1.5, sw.lineWidth * 0.5 * sw.alpha);
+                ctx.stroke();
+                ctx.restore();
+            }
+
+            for (let i = state.debrisParticles.length - 1; i >= 0; i--) {
+                const p = state.debrisParticles[i];
+                p.x += p.vx;
+                p.y += p.vy;
+                p.vy += p.gravity;
+                p.rot += p.vRot;
+                p.alpha -= p.decay;
+                if (p.alpha <= 0) {
+                    state.debrisParticles.splice(i, 1);
+                    continue;
+                }
+                ctx.save();
+                ctx.globalAlpha = Math.max(0, p.alpha);
+                ctx.translate(p.x, p.y);
+                ctx.rotate(p.rot);
+
+                ctx.fillStyle = 'rgba(15, 23, 42, 0.25)';
+                ctx.beginPath();
+                ctx.moveTo(-p.size * 0.5 + 2, -p.size * 0.4 + 3);
+                ctx.lineTo(p.size * 0.6 + 2, -p.size * 0.2 + 3);
+                ctx.lineTo(p.size * 0.2 + 2, p.size * 0.6 + 3);
+                ctx.lineTo(-p.size * 0.6 + 2, p.size * 0.3 + 3);
+                ctx.closePath();
+                ctx.fill();
+
+                ctx.fillStyle = p.color;
+                ctx.strokeStyle = 'rgba(15, 23, 42, 0.35)';
+                ctx.lineWidth = 1.2;
+                ctx.beginPath();
+                ctx.moveTo(-p.size * 0.5, -p.size * 0.4);
+                ctx.lineTo(p.size * 0.6, -p.size * 0.2);
+                ctx.lineTo(p.size * 0.2, p.size * 0.6);
+                ctx.lineTo(-p.size * 0.6, p.size * 0.3);
+                ctx.closePath();
+                ctx.fill();
+                ctx.stroke();
+                ctx.restore();
+            }
+
+            if (state.breakFlashAlpha > 0) {
+                ctx.save();
+                ctx.fillStyle = `rgba(255, 255, 255, ${state.breakFlashAlpha})`;
+                ctx.fillRect(0, 0, arCanvas.width, arCanvas.height);
+                ctx.restore();
+                state.breakFlashAlpha = Math.max(0, state.breakFlashAlpha - 0.055);
+            }
+        }
+
+        function drawWallBeforeBreak(cw, ch) {
+            ctx.save();
+            if (state.cameraActive && videoEl && videoEl.readyState >= 2 && videoEl.videoWidth > 0) {
+                const vw = videoEl.videoWidth;
+                const vh = videoEl.videoHeight;
+                const vRatio = vw / vh;
+                let drawH = ch;
+                let drawW = drawH * vRatio;
+                if (drawW < cw) {
+                    drawW = cw;
+                    drawH = drawW / vRatio;
+                }
+                const vx = (cw - drawW) / 2;
+                const vy = (ch - drawH) / 2;
+                ctx.drawImage(videoEl, vx, vy, drawW, drawH);
+            } else {
+                const wallGrad = ctx.createLinearGradient(0, 0, cw, ch);
+                wallGrad.addColorStop(0, '#ffffff');
+                wallGrad.addColorStop(0.5, '#f8fafc');
+                wallGrad.addColorStop(1, '#f1f5f9');
+                ctx.fillStyle = wallGrad;
+                ctx.fillRect(0, 0, cw, ch);
+
+                ctx.strokeStyle = 'rgba(15, 23, 42, 0.05)';
+                ctx.lineWidth = 1;
+                const step = 48;
+                for (let x = 0; x < cw; x += step) {
+                    ctx.beginPath();
+                    ctx.moveTo(x, 0);
+                    ctx.lineTo(x, ch);
+                    ctx.stroke();
+                }
+                for (let y = 0; y < ch; y += step) {
+                    ctx.beginPath();
+                    ctx.moveTo(0, y);
+                    ctx.lineTo(cw, y);
+                    ctx.stroke();
+                }
+            }
+
+            if (state.hits > 0) {
+                ensureCrackSeeds();
+                const cx = cw * 0.5;
+                const cy = ch * 0.46;
+                const ratio = state.hits / state.maxHits;
+                const maxReach = Math.min(cw, ch) * (0.22 + ratio * 0.36);
+
+                const holeRadius = 26 + ratio * 68;
+                const dest = DESTINATIONS[state.destIndex] || DESTINATIONS[0];
+                const peekImg = ensureRoomImageLoaded(dest.panoramaUrl, dest.shortName);
+
+                ctx.save();
+                ctx.beginPath();
+                const jaggedPts = 14;
+                for (let j = 0; j < jaggedPts; j++) {
+                    const a = (Math.PI * 2 * j) / jaggedPts;
+                    const rJitter = holeRadius * (0.68 + ((j * 7 + state.hits * 3) % 5) * 0.13);
+                    const px = cx + Math.cos(a) * rJitter;
+                    const py = cy + Math.sin(a) * rJitter;
+                    if (j === 0) ctx.moveTo(px, py);
+                    else ctx.lineTo(px, py);
+                }
+                ctx.closePath();
+                ctx.clip();
+
+                const pW = peekImg.naturalWidth || peekImg.width || 1280;
+                const pH = peekImg.naturalHeight || peekImg.height || 720;
+                const pRatio = pW / Math.max(1, pH);
+                let drawH = ch;
+                let drawW = drawH * pRatio;
+                if (drawW < cw) {
+                    drawW = cw;
+                    drawH = drawW / pRatio;
+                }
+                ctx.drawImage(peekImg, (cw - drawW) / 2, (ch - drawH) / 2, drawW, drawH);
+
+                ctx.strokeStyle = 'rgba(15, 23, 42, 0.75)';
+                ctx.lineWidth = 10;
+                ctx.stroke();
+                ctx.restore();
+
+                const activeCount = Math.min(state.crackSeeds.length, 5 + state.hits * 4);
+                for (let i = 0; i < activeCount; i++) {
+                    const seed = state.crackSeeds[i];
+                    const totalLen = maxReach * seed.scale;
+
+                    const buildCrackPath = () => {
+                        ctx.beginPath();
+                        let px = cx;
+                        let py = cy;
+                        ctx.moveTo(px, py);
+                        seed.segs.forEach(seg => {
+                            const stepLen = totalLen * seg.lenRatio;
+                            px += Math.cos(seg.angle) * stepLen;
+                            py += Math.sin(seg.angle) * stepLen;
+                            ctx.lineTo(px, py);
+                        });
+                    };
+
+                    ctx.save();
+                    ctx.lineCap = 'round';
+                    ctx.lineJoin = 'round';
+                    buildCrackPath();
+                    ctx.strokeStyle = 'rgba(15, 23, 42, 0.78)';
+                    ctx.lineWidth = 4.5 + ratio * 4;
+                    ctx.stroke();
+
+                    buildCrackPath();
+                    ctx.strokeStyle = 'rgba(255, 241, 242, 0.95)';
+                    ctx.lineWidth = 1.8 + ratio * 1.6;
+                    ctx.stroke();
+
+                    buildCrackPath();
+                    ctx.strokeStyle = 'rgba(255, 56, 92, 0.85)';
+                    ctx.lineWidth = 2.6 + ratio * 2;
+                    ctx.stroke();
+                    ctx.restore();
+                }
+            }
+
+            ctx.restore();
+        }
+
+        // 카메라 열기 & 고감도 주먹 타격 모션 감지 (기기 이동/흔들림 차단)
+        let motionInterval = null;
+        let activeMediaStream = null;
+        let lastDeviceShakeTime = 0;
+
+        function handleDeviceMotion(e) {
+            const acc = e.acceleration || e.accelerationIncludingGravity;
+            const rot = e.rotationRate;
+            if (e.acceleration) {
+                const mag = Math.hypot(acc.x || 0, acc.y || 0, acc.z || 0);
+                if (mag > 1.35) {
+                    lastDeviceShakeTime = Date.now();
+                }
+            }
+            if (rot) {
+                const rotMag = Math.hypot(rot.alpha || 0, rot.beta || 0, rot.gamma || 0);
+                if (rotMag > 28) {
+                    lastDeviceShakeTime = Date.now();
+                }
+            }
+        }
+
+        function stopCameraStream() {
+            clearInterval(motionInterval);
+            window.removeEventListener('devicemotion', handleDeviceMotion);
+            state.cameraActive = false;
+            if (activeMediaStream) {
+                activeMediaStream.getTracks().forEach(track => track.stop());
+                activeMediaStream = null;
+            }
+        }
+
+        async function startCameraMotionDetection() {
+            const statusLabel = document.getElementById('ar-status-label');
+            if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+                state.cameraActive = false;
+                if (statusLabel) statusLabel.textContent = '터치 벽 두드리기 모드';
+                showToast('📷 카메라 미지원 환경입니다. 화면을 터치해 벽을 부숴보세요!');
+                return;
+            }
+
+            stopCameraStream();
+            window.addEventListener('devicemotion', handleDeviceMotion, { passive: true });
+
+            const constraintsList = [
+                { video: { facingMode: { ideal: 'environment' }, width: { ideal: 1280 }, height: { ideal: 720 } }, audio: false },
+                { video: { facingMode: 'user' }, audio: false },
+                { video: true, audio: false }
+            ];
+
+            let stream = null;
+            for (const constraints of constraintsList) {
+                try {
+                    stream = await navigator.mediaDevices.getUserMedia(constraints);
+                    if (stream) break;
+                } catch (_) {}
+            }
+
+            if (!stream) {
+                state.cameraActive = false;
+                if (statusLabel) statusLabel.textContent = '터치 벽 두드리기 모드';
+                showToast('📷 카메라 권한을 허용하면 주먹 모션으로 벽을 부술 수 있어요.');
+                return;
+            }
+
+            activeMediaStream = stream;
+            if (videoEl) {
+                videoEl.srcObject = stream;
+                try {
+                    await videoEl.play();
+                } catch (_) {}
+            }
+
+            state.cameraActive = true;
+            if (statusLabel) statusLabel.textContent = 'AR 카메라 활성 · 주먹을 휘두르거나 터치하세요';
+            showToast('📷 카메라를 고정한 채 주먹을 휘두르거나 화면을 두드려 보세요!');
+
+            const mCanvas = document.createElement('canvas');
+            mCanvas.width = 64;
+            mCanvas.height = 48;
+            const mCtx = mCanvas.getContext('2d', { willReadFrequently: true });
+            let prevFrame = null;
+            let lastTrigger = 0;
+
+            motionInterval = setInterval(() => {
+                if (state.step !== 'ar' || state.broken || !videoEl || videoEl.readyState < 2) return;
+                const w = 64;
+                const h = 48;
+                mCtx.drawImage(videoEl, 0, 0, w, h);
+                const curr = mCtx.getImageData(0, 0, w, h).data;
+                if (prevFrame) {
+                    const now = Date.now();
+                    if (now - lastDeviceShakeTime < 420) {
+                        prevFrame = new Uint8ClampedArray(curr);
+                        return;
+                    }
+
+                    let centerChanged = 0;
+                    let centerTotal = 0;
+                    let borderChanged = 0;
+                    let borderTotal = 0;
+
+                    for (let y = 0; y < h; y++) {
+                        for (let x = 0; x < w; x++) {
+                            const idx = (y * w + x) * 4;
+                            const diff = Math.abs(curr[idx] - prevFrame[idx])
+                                       + Math.abs(curr[idx + 1] - prevFrame[idx + 1])
+                                       + Math.abs(curr[idx + 2] - prevFrame[idx + 2]);
+                            const isMoving = diff > 42;
+
+                            const inCenter = (x >= 12 && x <= 52 && y >= 8 && y <= 40);
+                            if (inCenter) {
+                                centerTotal++;
+                                if (isMoving) centerChanged++;
+                            } else {
+                                borderTotal++;
+                                if (isMoving) borderChanged++;
+                            }
+                        }
+                    }
+
+                    const centerRatio = centerChanged / Math.max(1, centerTotal);
+                    const borderRatio = borderChanged / Math.max(1, borderTotal);
+
+                    const isCameraMoving = borderRatio > 0.24;
+                    const isIsolatedPunch = centerRatio > 0.085 && (centerRatio - borderRatio) > 0.05;
+
+                    if (!isCameraMoving && isIsolatedPunch && now - lastTrigger > 320) {
+                        lastTrigger = now;
+                        registerPunchHit();
+                    }
+                }
+                prevFrame = new Uint8ClampedArray(curr);
+            }, 65);
+        }
+
+        function renderLoop() {
+            if (ctx && arCanvas) {
+                const cw = arCanvas.width;
+                const ch = arCanvas.height;
+                ctx.clearRect(0, 0, cw, ch);
+                if (!state.broken) {
+                    drawWallBeforeBreak(cw, ch);
+                } else {
+                    const dest = DESTINATIONS[state.destIndex] || DESTINATIONS[0];
+                    drawRoomInterior(dest, cw, ch);
+                    drawDebrisAndShockwaves();
+                }
+            }
+            requestAnimationFrame(renderLoop);
+        }
+
+        function registerPunchHit(tapX, tapY) {
+            if (state.broken) return;
+            state.hits = Math.min(state.maxHits, state.hits + 1);
+            const hitEl = document.getElementById('hit-counter');
+            if (hitEl) hitEl.textContent = String(state.hits);
+
+            const cx = typeof tapX === 'number' ? tapX : arCanvas.width * 0.5;
+            const cy = typeof tapY === 'number' ? tapY : arCanvas.height * 0.46;
+            const isFinal = state.hits >= state.maxHits;
+            spawnImpactEffects(cx, cy, isFinal);
+
+            const frame = document.getElementById('app-frame');
+            if (frame) {
+                frame.classList.remove('shake-active');
+                void frame.offsetWidth;
+                frame.classList.add('shake-active');
+            }
+
+            const ring = document.getElementById('reticle-progress-ring');
+            if (ring) {
+                ring.style.transform = 'scale(1.16)';
+                setTimeout(() => { ring.style.transform = 'scale(1)'; }, 150);
+            }
+
+            if (isFinal) {
+                completeWallBreak();
+            } else {
+                showToast(`💥 콰직! 벽에 균열이 번집니다 (${state.hits}/${state.maxHits})`);
+            }
+        }
+
+        function completeWallBreak() {
+            state.broken = true;
+            const dest = DESTINATIONS[state.destIndex] || DESTINATIONS[0];
+            const staysList = dest.stays && dest.stays.length > 0 ? dest.stays : [];
+            const currentStay = staysList.length > 0 ? staysList[state.stayIndex % staysList.length] : null;
+            const roomName = currentStay ? currentStay.name : dest.title;
+
+            document.getElementById('ar-target-overlay')?.classList.add('hidden');
+            document.getElementById('ar-escape-overlay')?.classList.remove('hidden');
+
+            const statusLabel = document.getElementById('ar-status-label');
+            if (statusLabel) statusLabel.textContent = `${dest.name}`;
+
+            const layerBadge = document.getElementById('layer-badge');
+            if (layerBadge) layerBadge.textContent = dest.shortName;
+
+            const titleEl = document.getElementById('escape-dest-title');
+            const descEl = document.getElementById('escape-dest-desc');
+            if (titleEl) {
+                titleEl.textContent = roomName;
+            }
+            if (descEl) {
+                descEl.textContent = `${dest.name} · ${currentStay ? currentStay.tag : '전망 숙소'}`;
+            }
+
+            showToast(`✨ [${dest.name}] ${roomName} 공간이 열렸습니다!`);
+        }
+
+        function switchStep(nextStep, withPostcardFlyIn = false) {
+            state.step = nextStep;
+            stepEnter?.classList.toggle('hidden', nextStep !== 'enter');
+            stepAr?.classList.toggle('hidden', nextStep !== 'ar');
+            stepResult?.classList.toggle('hidden', nextStep !== 'result');
+
+            if (nextStep === 'ar') {
+                resizeCanvas();
+            } else if (nextStep === 'result') {
+                populateResultScreen();
+                if (withPostcardFlyIn) {
+                    const box = document.getElementById('postcard-preview-box');
+                    if (box) {
+                        box.classList.remove('postcard-fly-in');
+                        void box.offsetWidth;
+                        box.classList.add('postcard-fly-in');
+                    }
+                }
+            }
+        }
+
+        function playPostcardFlyTransition() {
+            const overlay = document.getElementById('postcard-fly-overlay');
+            const envCard = document.getElementById('flying-envelope-card');
+            if (!overlay || !envCard) {
+                switchStep('result', true);
+                return;
+            }
+            overlay.classList.remove('hidden');
+            envCard.classList.remove('flying-envelope-anim');
+            void envCard.offsetWidth;
+            envCard.classList.add('flying-envelope-anim');
+
+            setTimeout(() => {
+                overlay.classList.add('hidden');
+                switchStep('result', true);
+            }, 1180);
+        }
+
+        // =========================================================
+        // 4. 타임캡슐 엽서 & 위시리스트 화면 렌더링
+        // =========================================================
+        function updatePostcardPreview() {
+            const dest = DESTINATIONS[state.destIndex] || DESTINATIONS[0];
+            const chipsText = state.selectedChips.length > 0 ? state.selectedChips.join(' ') : '#퇴근길한숨 #6개월뒤엔여기';
+            const msgEl = document.getElementById('postcard-message-preview');
+            if (msgEl) {
+                const customText = (state.customMessage || '').trim();
+                if (customText) {
+                    msgEl.textContent = `“${customText}” (${chipsText})`;
+                } else {
+                    msgEl.textContent = `“${chipsText} 끝내고 ${state.selectedTiming}, ${dest.shortName} 숙소에서 쉴 나에게”`;
+                }
+            }
+
+            const dateBadge = document.getElementById('postcard-open-date-badge');
+            if (dateBadge) {
+                dateBadge.textContent = `${state.selectedOpenDate}`;
+            }
+
+            const folderTitle = document.getElementById('wishlist-folder-title');
+            if (folderTitle) {
+                folderTitle.textContent = `💌 [${state.selectedOpenDate}] 나의 ${dest.shortName} 타임캡슐`;
+            }
+
+            const subStatus = document.getElementById('wishlist-sub-status');
+            if (subStatus) {
+                const totalSaved = (state.brokenStaySaved ? 1 : 0) + state.savedNearbyStays.length;
+                if (totalSaved > 0) {
+                    subStatus.classList.remove('hidden');
+                    subStatus.textContent = `위시리스트 ${totalSaved}곳 담김`;
+                } else {
+                    subStatus.classList.add('hidden');
+                    subStatus.textContent = '';
+                }
+            }
+        }
+
+        function pickRandomDestinationIndex() {
+            const candidates = RANDOM_DESTINATION_IDS
+                .map(id => DESTINATIONS.findIndex(d => d.id === id))
+                .filter(idx => idx >= 0);
+            if (candidates.length === 0) return 0;
+
+            let chosen = candidates[Math.floor(Math.random() * candidates.length)];
+            if (candidates.length > 1 && chosen === state.lastRandomIndex) {
+                const others = candidates.filter(idx => idx !== state.lastRandomIndex);
+                chosen = others[Math.floor(Math.random() * others.length)];
+            }
+            state.lastRandomIndex = chosen;
+            return chosen;
+        }
+
+        function applyDestinationSearch(silent = false) {
+            const raw = (document.getElementById('dest-search-input')?.value || '').trim();
+            if (!raw) {
+                if (!silent) showToast('여행지 또는 분위기 키워드를 입력해 주세요.');
+                return false;
+            }
+            state.selectionMode = 'search';
+            state.destinationChosen = true;
+
+            let matchedId = null;
+            for (const [kw, id] of Object.entries(SEARCH_KEYWORDS)) {
+                if (raw.includes(kw)) {
+                    matchedId = id;
+                    break;
+                }
+            }
+
+            let foundIdx = matchedId ? DESTINATIONS.findIndex(d => d.id === matchedId) : -1;
+            if (foundIdx < 0) {
+                foundIdx = DESTINATIONS.findIndex(d => d.name.includes(raw) || d.shortName.includes(raw));
+            }
+
+            if (foundIdx >= 0) {
+                state.destIndex = foundIdx;
+                state.stayIndex = 0;
+                DESTINATIONS[foundIdx].stays.forEach(st => {
+                    if (st.img) ensureRoomImageLoaded(st.img, `${DESTINATIONS[foundIdx].shortName} 숙소`);
+                    if (st.fullImg) ensureRoomImageLoaded(st.fullImg, `${DESTINATIONS[foundIdx].shortName} 숙소`);
+                });
+                showStartArButton();
+                if (!silent) showToast(`📍 '${DESTINATIONS[foundIdx].name}' 지역 숙소로 설정되었습니다!`);
+                return true;
+            }
+
+            const roomA = takeUniqueRoomPhoto(0);
+            const roomB = takeUniqueRoomPhoto(1);
+            const roomC = takeUniqueRoomPhoto(2);
+            const customId = `custom-${Date.now()}`;
+
+            const customDest = {
+                id: customId,
+                name: raw,
+                shortName: raw,
+                title: `${raw} ${roomA.vibe}`,
+                desc: `${raw} 지역 전용 숙소 인테리어(${roomA.vibe})입니다.`,
+                panoramaUrl: roomA.img,
+                stays: [
+                    { name: `${raw} ${roomA.vibe}`, price: '₩245,000/박', tag: `${raw} · ${roomA.vibe}`, img: roomA.thumb, fullImg: roomA.img },
+                    { name: `${raw} ${roomB.vibe}`, price: '₩210,000/박', tag: `${raw} · ${roomB.vibe}`, img: roomB.thumb, fullImg: roomB.img },
+                    { name: `${raw} ${roomC.vibe}`, price: '₩275,000/박', tag: `${raw} · ${roomC.vibe}`, img: roomC.thumb, fullImg: roomC.img }
+                ]
+            };
+
+            [roomA.img, roomB.img, roomC.img].forEach(url => {
+                ensureRoomImageLoaded(url, `${raw} 숙소 인테리어`);
+            });
+
+            DESTINATIONS.push(customDest);
+            state.destIndex = DESTINATIONS.length - 1;
+            state.stayIndex = 0;
+            showStartArButton();
+            if (!silent) showToast(`📍 '${raw}' 지역 전용 숙소로 설정되었습니다!`);
+            return true;
+        }
+
+        function updateBrokenStayHeartUI() {
+            const btn = document.getElementById('btn-broken-stay-heart');
+            const icon = document.getElementById('broken-stay-heart-icon');
+            if (!btn || !icon) return;
+
+            if (state.brokenStaySaved) {
+                btn.classList.remove('bg-white/95', 'border-slate-200', 'text-[#FF385C]');
+                btn.classList.add('bg-[#FF385C]', 'border-[#FF385C]', 'text-white');
+                icon.classList.remove('fa-regular', 'text-[#FF385C]');
+                icon.classList.add('fa-solid', 'text-white');
+            } else {
+                btn.classList.add('bg-white/95', 'border-slate-200', 'text-[#FF385C]');
+                btn.classList.remove('bg-[#FF385C]', 'border-[#FF385C]', 'text-white');
+                icon.classList.add('fa-regular', 'text-[#FF385C]');
+                icon.classList.remove('fa-solid', 'text-white');
+            }
+        }
+
+        function populateResultScreen() {
+            const dest = DESTINATIONS[state.destIndex] || DESTINATIONS[0];
+            const staysList = dest.stays && dest.stays.length > 0 ? dest.stays : [];
+            const brokenStay = staysList.length > 0 ? staysList[state.stayIndex % staysList.length] : {
+                name: dest.title,
+                price: '₩245,000/박',
+                img: dest.panoramaUrl,
+                fullImg: dest.panoramaUrl
+            };
+
+            const destImg = document.getElementById('result-dest-img');
+            const destName = document.getElementById('result-dest-name');
+            const brokenStayNameEl = document.getElementById('postcard-broken-stay-name');
+
+            if (destImg) {
+                const fallbackDataUrl = createFallbackRoomCanvas(`${dest.shortName} 숙소`).toDataURL('image/png');
+                destImg.onerror = () => {
+                    destImg.onerror = null;
+                    destImg.src = fallbackDataUrl;
+                };
+                destImg.src = brokenStay.fullImg || brokenStay.img || dest.panoramaUrl || fallbackDataUrl;
+            }
+            if (destName) destName.textContent = dest.name;
+            if (brokenStayNameEl) brokenStayNameEl.textContent = brokenStay.name;
+
+            updateBrokenStayHeartUI();
+            updatePostcardPreview();
+
+            const container = document.getElementById('stay-cards-container');
+            if (!container) return;
+            container.innerHTML = '';
+
+            const nearbyStays = staysList.filter(stay => stay.name !== brokenStay.name);
+
+            nearbyStays.forEach((stay) => {
+                const isSaved = state.savedNearbyStays.includes(stay.name);
+                const fallbackStayUrl = createFallbackRoomCanvas(`${dest.shortName} · ${stay.tag || '숙소'}`).toDataURL('image/png');
+                const safeImgSrc = stay.img || stay.fullImg || dest.panoramaUrl || fallbackStayUrl;
+                const card = document.createElement('div');
+                card.className = 'min-w-[215px] rounded-2xl overflow-hidden bg-slate-50 border border-slate-200 flex flex-col justify-between shrink-0 shadow-sm';
+                card.innerHTML = `
+                    <div class="relative h-28 w-full bg-slate-100">
+                        <img src="${safeImgSrc}" alt="${stay.name}" class="w-full h-full object-cover"
+                             onerror="this.onerror=null;this.src='${fallbackStayUrl}'">
+                        <span class="absolute top-2 left-2 px-2 py-0.5 rounded-md bg-white/90 text-[10px] font-bold text-slate-800 shadow-sm">${stay.tag}</span>
+                        <button type="button" class="stay-heart-btn absolute top-2 right-2 w-8 h-8 rounded-full ${isSaved ? 'bg-[#FF385C] text-white' : 'bg-white/90 text-slate-700'} flex items-center justify-center shadow active:scale-90 transition">
+                            <i class="fa-solid fa-heart text-xs"></i>
+                        </button>
+                    </div>
+                    <div class="p-3 space-y-1 bg-white">
+                        <p class="text-xs font-bold text-slate-900 line-clamp-1">${stay.name}</p>
+                        <p class="text-[11px] font-extrabold text-[#FF385C]">${stay.price}</p>
+                    </div>
+                `;
+
+                const heartBtn = card.querySelector('.stay-heart-btn');
+                heartBtn?.addEventListener('click', () => {
+                    if (state.savedNearbyStays.includes(stay.name)) {
+                        state.savedNearbyStays = state.savedNearbyStays.filter(n => n !== stay.name);
+                        showToast(`근방 숙소 '${stay.name}' 위시리스트에서 해제되었습니다.`);
+                    } else {
+                        state.savedNearbyStays.push(stay.name);
+                        showToast(`♥ 근방 숙소 '${stay.name}' 위시리스트에 담겼습니다!`);
+                    }
+                    populateResultScreen();
+                });
+
+                container.appendChild(card);
+            });
+        }
+
+        document.getElementById('btn-broken-stay-heart')?.addEventListener('click', () => {
+            const dest = DESTINATIONS[state.destIndex] || DESTINATIONS[0];
+            const staysList = dest.stays && dest.stays.length > 0 ? dest.stays : [];
+            const brokenStay = staysList.length > 0 ? staysList[state.stayIndex % staysList.length] : { name: dest.title };
+
+            state.brokenStaySaved = !state.brokenStaySaved;
+            updateBrokenStayHeartUI();
+            updatePostcardPreview();
+
+            if (state.brokenStaySaved) {
+                showToast(`♥ '${brokenStay.name}' 숙소가 위시리스트에 담겼습니다!`);
+            } else {
+                showToast(`'${brokenStay.name}' 위시리스트에서 해제되었습니다.`);
+            }
+        });
+
+        document.getElementById('btn-mode-random')?.addEventListener('click', () => {
+            state.selectionMode = 'random';
+            state.destinationChosen = true;
+            state.destIndex = pickRandomDestinationIndex();
+            state.stayIndex = 0;
+            const searchInput = document.getElementById('dest-search-input');
+            if (searchInput) searchInput.value = '';
+            document.getElementById('dest-search-panel')?.classList.add('hidden');
+            document.getElementById('btn-mode-random')?.classList.add('border-[#FF385C]', 'bg-rose-50', 'text-[#FF385C]');
+            document.getElementById('btn-mode-search')?.classList.remove('border-[#FF385C]', 'bg-rose-50', 'text-[#FF385C]');
+            updateRandomPredictionWindow();
+            showStartArButton();
+        });
+
+        document.getElementById('btn-mode-search')?.addEventListener('click', () => {
+            state.selectionMode = 'search';
+            document.getElementById('random-predict-box')?.classList.add('hidden');
+            const panel = document.getElementById('dest-search-panel');
+            panel?.classList.remove('hidden');
+            document.getElementById('btn-mode-search')?.classList.add('border-[#FF385C]', 'bg-rose-50', 'text-[#FF385C]');
+            document.getElementById('btn-mode-random')?.classList.remove('border-[#FF385C]', 'bg-rose-50', 'text-[#FF385C]');
+            document.getElementById('dest-search-input')?.focus();
+        });
+
+        document.getElementById('btn-apply-search')?.addEventListener('click', () => {
+            applyDestinationSearch(false);
+        });
+
+        document.getElementById('dest-search-input')?.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter') {
+                e.preventDefault();
+                applyDestinationSearch(false);
+            }
+        });
+
+        document.getElementById('btn-start-ar')?.addEventListener('click', () => {
+            const searchInputVal = (document.getElementById('dest-search-input')?.value || '').trim();
+
+            if (searchInputVal) {
+                applyDestinationSearch(true);
+            } else if (!state.destinationChosen) {
+                showToast('먼저 랜덤 여행지 또는 여행지 선택을 완료해 주세요.');
+                return;
+            }
+
+            state.hits = 0;
+            state.broken = false;
+            state.stayIndex = 0;
+            state.panX = 0;
+            state.brokenStaySaved = false;
+            state.savedNearbyStays = [];
+
+            const hitEl = document.getElementById('hit-counter');
+            if (hitEl) hitEl.textContent = '0';
+            document.getElementById('ar-target-overlay')?.classList.remove('hidden');
+            document.getElementById('ar-escape-overlay')?.classList.add('hidden');
+
+            switchStep('ar');
+            startCameraMotionDetection();
+        });
+
+        document.getElementById('btn-back-home')?.addEventListener('click', () => {
+            stopCameraStream();
+            switchStep('enter');
+        });
+
+        document.getElementById('btn-toggle-clean-view')?.addEventListener('click', () => {
+            document.getElementById('escape-top-panel')?.classList.add('hidden');
+            document.getElementById('ar-escape-overlay')?.classList.add('hidden');
+            document.getElementById('clean-view-restore-bar')?.classList.remove('hidden');
+        });
+
+        document.getElementById('btn-restore-ui')?.addEventListener('click', () => {
+            document.getElementById('escape-top-panel')?.classList.remove('hidden');
+            if (state.broken) {
+                document.getElementById('ar-escape-overlay')?.classList.remove('hidden');
+            }
+            document.getElementById('clean-view-restore-bar')?.classList.add('hidden');
+        });
+
+        // 타임캡슐 엽서 쓰기 클릭 시 엽서 날아오는 모션과 함께 마지막 창 전환
+        document.getElementById('btn-claim-reward')?.addEventListener('click', () => {
+            playPostcardFlyTransition();
+        });
+
+        document.getElementById('btn-result-back-ar')?.addEventListener('click', () => {
+            switchStep('ar');
+        });
+
+        document.querySelectorAll('.mood-chip').forEach(chip => {
+            chip.addEventListener('click', () => {
+                const val = chip.getAttribute('data-chip');
+                if (!val) return;
+                if (state.selectedChips.includes(val)) {
+                    state.selectedChips = state.selectedChips.filter(c => c !== val);
+                    chip.classList.remove('active', 'bg-[#FF385C]', 'border-[#FF385C]', 'text-white');
+                    chip.classList.add('bg-slate-100', 'border-slate-200', 'text-slate-700');
+                } else {
+                    state.selectedChips.push(val);
+                    chip.classList.add('active', 'bg-[#FF385C]', 'border-[#FF385C]', 'text-white');
+                    chip.classList.remove('bg-slate-100', 'border-slate-200', 'text-slate-700');
+                }
+                updatePostcardPreview();
+            });
+        });
+
+        document.getElementById('custom-postcard-input')?.addEventListener('input', (e) => {
+            state.customMessage = e.target.value || '';
+            updatePostcardPreview();
+        });
+
+        document.querySelectorAll('.timing-btn').forEach(btn => {
+            btn.addEventListener('click', () => {
+                document.querySelectorAll('.timing-btn').forEach(b => {
+                    b.classList.remove('active', 'bg-rose-50', 'border-[#FF385C]', 'font-bold', 'text-[#FF385C]');
+                    b.classList.add('bg-slate-50', 'border-slate-200', 'font-semibold', 'text-slate-700');
+                });
+                btn.classList.add('active', 'bg-rose-50', 'border-[#FF385C]', 'font-bold', 'text-[#FF385C]');
+                btn.classList.remove('bg-slate-50', 'border-slate-200', 'font-semibold', 'text-slate-700');
+
+                state.selectedTiming = btn.getAttribute('data-timing') || '6개월 뒤 첫 연휴 전날';
+                state.selectedOpenDate = btn.getAttribute('data-date') || '2027.05';
+                updatePostcardPreview();
+            });
+        });
+
+        document.getElementById('btn-preview-future-open')?.addEventListener('click', () => {
+            const dest = DESTINATIONS[state.destIndex] || DESTINATIONS[0];
+            const staysList = dest.stays && dest.stays.length > 0 ? dest.stays : [];
+            const stay = staysList.length > 0 ? staysList[state.stayIndex % staysList.length] : { name: dest.title, price: '₩245,000/박' };
+            const headline = document.getElementById('modal-open-headline');
+            const quote = document.getElementById('modal-open-quote');
+            const stayName = document.getElementById('modal-stay-name');
+            const stayPrice = document.getElementById('modal-stay-price');
+
+            if (headline) headline.textContent = `${state.selectedOpenDate}, 과거의 나로부터 여행 엽서가 도착했어요!`;
+            if (quote) quote.textContent = document.getElementById('postcard-message-preview')?.textContent || '';
+            if (stayName) stayName.textContent = stay.name;
+            if (stayPrice) stayPrice.textContent = stay.price;
+
+            document.getElementById('future-modal')?.classList.remove('hidden');
+        });
+
+        document.getElementById('btn-close-future-modal')?.addEventListener('click', () => {
+            document.getElementById('future-modal')?.classList.add('hidden');
+        });
+
+        function copyTextFallback(text) {
+            const tempArea = document.createElement('textarea');
+            tempArea.value = text;
+            tempArea.setAttribute('readonly', '');
+            tempArea.style.position = 'fixed';
+            tempArea.style.top = '0';
+            tempArea.style.left = '0';
+            tempArea.style.opacity = '0';
+            document.body.appendChild(tempArea);
+            tempArea.focus();
+            tempArea.select();
+            tempArea.setSelectionRange(0, text.length);
+            let ok = false;
+            try {
+                ok = document.execCommand('copy');
+            } catch (_) {
+                ok = false;
+            }
+            document.body.removeChild(tempArea);
+            return ok;
+        }
+
+        function shareTimeCapsuleWithFriend() {
+            const dest = DESTINATIONS[state.destIndex] || DESTINATIONS[0];
+            const staysList = dest.stays && dest.stays.length > 0 ? dest.stays : [];
+            const stay = staysList.length > 0 ? staysList[state.stayIndex % staysList.length] : { name: dest.title, price: '' };
+            const msg = document.getElementById('postcard-message-preview')?.textContent?.trim() || '';
+
+            const shareText = `[Airbnb 타임캡슐 친구 초대장]\n📍 여행지: ${dest.name}\n🏠 숙소: ${stay.name} (${stay.price})\n💌 엽서 메시지: ${msg}\n\n우리 ${state.selectedOpenDate}에 여기 같이 갈래? 👉 https://airbnb.com/timecapsule`;
+
+            copyTextFallback(shareText);
+
+            const shareTextarea = document.getElementById('share-invite-textarea');
+            if (shareTextarea) {
+                shareTextarea.value = shareText;
+            }
+            document.getElementById('future-modal')?.classList.add('hidden');
+            document.getElementById('share-preview-modal')?.classList.remove('hidden');
+            showToast('💌 친구에게 보낼 친구 초대장이 복사되었어요!');
+        }
+
+        document.getElementById('btn-share-capsule')?.addEventListener('click', (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            shareTimeCapsuleWithFriend();
+        });
+        document.getElementById('btn-invite-friend')?.addEventListener('click', (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            shareTimeCapsuleWithFriend();
+        });
+        document.getElementById('btn-close-share-modal')?.addEventListener('click', () => {
+            document.getElementById('share-preview-modal')?.classList.add('hidden');
+        });
+        document.getElementById('btn-copy-invite-again')?.addEventListener('click', () => {
+            const txt = document.getElementById('share-invite-textarea')?.value || '';
+            copyTextFallback(txt);
+            showToast('📋 초대 문구가 복사되었습니다!');
+        });
+
+        document.getElementById('btn-book-now')?.addEventListener('click', () => {
+            document.getElementById('future-modal')?.classList.add('hidden');
+            showToast('📅 에어비앤비 숙소 예약 캘린더와 연동되었습니다!');
+        });
+
+        if (arCanvas) {
+            let pointerDownX = 0;
+            let pointerDownY = 0;
+            let movedDistance = 0;
+
+            arCanvas.addEventListener('pointerdown', (e) => {
+                state.isDragging = true;
+                state.lastPointerX = e.clientX;
+                pointerDownX = e.clientX;
+                pointerDownY = e.clientY;
+                movedDistance = 0;
+            });
+
+            arCanvas.addEventListener('pointermove', (e) => {
+                if (!state.isDragging) return;
+                const dx = e.clientX - state.lastPointerX;
+                movedDistance += Math.abs(dx) + Math.abs(e.clientY - pointerDownY);
+                state.lastPointerX = e.clientX;
+                if (state.broken) {
+                    state.panX += dx * 1.4;
+                }
+            });
+
+            arCanvas.addEventListener('pointerup', (e) => {
+                state.isDragging = false;
+                if (movedDistance < 12 && !state.broken) {
+                    const rect = arCanvas.getBoundingClientRect();
+                    const dpr = arCanvas.width / Math.max(1, rect.width);
+                    const tapX = (e.clientX - rect.left) * dpr;
+                    const tapY = (e.clientY - rect.top) * dpr;
+                    registerPunchHit(tapX, tapY);
+                }
+            });
+        }
+
+        window.addEventListener('resize', resizeCanvas);
+        window.addEventListener('load', () => {
+            resizeCanvas();
+            renderLoop();
+        });
+    </script>
+</body>
+</html>
